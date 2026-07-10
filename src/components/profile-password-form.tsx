@@ -18,11 +18,11 @@ export function ProfilePasswordForm() {
         </div>
         <div className="field">
           <label htmlFor="profile-new-password">รหัสผ่านใหม่</label>
-          <input className="input" id="profile-new-password" name="newPassword" type="password" minLength={12} autoComplete="new-password" required />
+          <input className="input" id="profile-new-password" name="newPassword" type="password" minLength={8} autoComplete="new-password" required />
         </div>
         <div className="field">
           <label htmlFor="profile-confirm-password">ยืนยันรหัสผ่านใหม่</label>
-          <input className="input" id="profile-confirm-password" name="confirmPassword" type="password" minLength={12} autoComplete="new-password" required />
+          <input className="input" id="profile-confirm-password" name="confirmPassword" type="password" minLength={8} autoComplete="new-password" required />
         </div>
         <button className="button" type="submit"><ShieldCheck size={16} /> เปลี่ยนรหัสผ่าน</button>
       </form>

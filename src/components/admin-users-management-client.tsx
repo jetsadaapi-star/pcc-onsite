@@ -140,7 +140,7 @@ function UserFormModal({
               <KeyRound size={15} />
               {user ? "รหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)" : "รหัสผ่าน"}
             </label>
-            <input className="input" id="admin-user-password" name="password" type="password" minLength={12} autoComplete="new-password" required={!user} placeholder="อย่างน้อย 12 ตัวอักษร" />
+            <input className="input" id="admin-user-password" name="password" type="password" minLength={8} autoComplete="new-password" required={!user} placeholder="อย่างน้อย 8 ตัวอักษร" />
           </div>
 
           <div className="admin-user-form-hint">

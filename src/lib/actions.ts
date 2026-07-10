@@ -285,7 +285,7 @@ export async function changeOwnPasswordAction(formData: FormData) {
   const currentPassword = getString(formData, "currentPassword");
   const newPassword = getString(formData, "newPassword");
   const confirmPassword = getString(formData, "confirmPassword");
-  if (newPassword.length < 12) throw new Error("Password must be at least 12 characters");
+  if (newPassword.length < 8) throw new Error("Password must be at least 8 characters");
   if (newPassword !== confirmPassword) throw new Error("Password confirmation does not match");
 
   const account = await prisma.user.findUnique({ where: { id: user.id }, select: { passwordHash: true } });
@@ -1961,7 +1961,7 @@ export async function createUserAction(formData: FormData) {
   if (!email || !password || !name) throw new Error("Missing required user fields");
   if (!z.string().email().safeParse(email).success) throw new Error("Invalid email address");
   if (!["ADMIN", "EMPLOYEE", "SALES", "ENGINEER"].includes(role)) throw new Error("Invalid role");
-  if (password.length < 12) throw new Error("Password must be at least 12 characters");
+  if (password.length < 8) throw new Error("Password must be at least 8 characters");
 
   const user = await prisma.user.create({
     data: {
@@ -2005,7 +2005,7 @@ export async function updateUserAction(formData: FormData) {
   if (!z.string().email().safeParse(email).success) throw new Error("Invalid email address");
   if (!["ADMIN", "EMPLOYEE", "SALES", "ENGINEER"].includes(role)) throw new Error("Invalid role");
   if (admin.id === id && role !== "ADMIN") throw new Error("Cannot remove your own admin role");
-  if (password && password.length < 12) throw new Error("Password must be at least 12 characters");
+  if (password && password.length < 8) throw new Error("Password must be at least 8 characters");
 
   const existingUser = await prisma.user.findUnique({ where: { id }, select: { role: true, active: true } });
   if (!existingUser) throw new Error("User not found");

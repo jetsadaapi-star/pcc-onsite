@@ -20,8 +20,8 @@ async function main() {
     process.env.SEED_SALES_PASSWORD,
     process.env.SEED_ENGINEER_PASSWORD
   ];
-  if (seedPasswords.some((password) => !password || password.length < 12)) {
-    throw new Error("Set all SEED_*_PASSWORD values to at least 12 characters before running the demo seed.");
+  if (seedPasswords.some((password) => !password || password.length < 8)) {
+    throw new Error("Set all SEED_*_PASSWORD values to at least 8 characters before running the demo seed.");
   }
 
   const [adminHash, employeeHash, salesHash, engineerHash] = await Promise.all(
