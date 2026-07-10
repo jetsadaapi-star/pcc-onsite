@@ -1,0 +1,607 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+  SALES
+  ENGINEER
+}
+
+enum ProjectStatus {
+  NEW
+  CONTACTED
+  SURVEY_SCHEDULED
+  SURVEYED
+  QUOTING
+  QUOTED
+  NEGOTIATING
+  WON
+  IN_CONSTRUCTION
+  COMPLETED
+  ON_HOLD
+  CLOSED_LOST
+  CANCELLED
+}
+
+enum CheckInPurpose {
+  SITE_SURVEY
+  CUSTOMER_VISIT
+  FOLLOW_UP
+  INSPECTION
+  HANDOVER
+  CONSTRUCTION
+  OTHER
+}
+
+enum CheckOutStatus {
+  DONE
+  NEED_RETURN
+  WAITING_CUSTOMER
+  ISSUE
+  OTHER
+}
+
+enum RouteProvider {
+  OPENROUTESERVICE
+  HAVERSINE
+  MANUAL
+}
+
+enum DistanceStatus {
+  CALCULATED
+  PENDING_REVIEW
+  MANUAL
+}
+
+enum ClaimStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum TripOriginType {
+  OFFICE
+  HOME
+  CURRENT_LOCATION
+  PREVIOUS_SITE
+}
+
+enum TripStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum TripDestinationType {
+  PROJECT
+  OFFICE
+}
+
+enum FuelType {
+  GASOLINE
+  DIESEL
+  HYBRID
+  EV
+  OTHER
+}
+
+enum OdometerLogType {
+  CHECK_IN
+  CHECK_OUT
+  REFUEL
+}
+
+enum NotificationChannel {
+  EMAIL
+  LINE
+}
+
+enum NotificationType {
+  CHECKOUT_REMINDER
+}
+
+enum NotificationStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum AnomalyType {
+  GPS_FAR_FROM_PROJECT
+  ODOMETER_REVERSED
+  DISTANCE_VARIANCE_HIGH
+  FUEL_EFFICIENCY_OUTLIER
+}
+
+enum AnomalySeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum AnomalyStatus {
+  OPEN
+  RESOLVED
+}
+
+enum ExportDocumentType {
+  ACCOUNTING_TRAVEL
+}
+
+enum ExportDocumentFormat {
+  CSV
+  EXCEL
+  PDF
+}
+
+model User {
+  id             String        @id @default(cuid())
+  email          String        @unique
+  passwordHash   String
+  name           String
+  role           Role          @default(EMPLOYEE)
+  department     String?
+  phone          String?
+  profilePhotoUrl String?
+  lineUserId     String?
+  checkoutReminderEnabled Boolean @default(true)
+  sessionVersion Int        @default(0)
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  createdProjects Project[]     @relation("ProjectCreator")
+  ownedProjects   Project[]     @relation("ProjectOwner")
+  vehicles        Vehicle[]
+  tripSessions    TripSession[]
+  checkIns        CheckIn[]
+  odometerLogs    OdometerLog[]
+  fuelLogs        FuelLog[]
+  travelLegs      TravelLeg[]
+  travelClaims    TravelClaim[] @relation("ClaimOwner")
+  reviewedClaims  TravelClaim[] @relation("ClaimReviewer")
+  activityLogs    ActivityLog[]
+  notificationLogs NotificationLog[]
+  anomalyRecords  AnomalyRecord[]
+  exportDocuments ExportDocument[]
+
+  @@index([role])
+  @@index([active])
+}
+
+model LoginThrottle {
+  key          String   @id
+  failedCount  Int      @default(0)
+  blockedUntil DateTime?
+  updatedAt    DateTime @updatedAt
+
+  @@index([blockedUntil])
+}
+
+model Vehicle {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  make         String?
+  model        String?
+  licensePlate String?
+  fuelType     FuelType @default(GASOLINE)
+  kmPerLiter   Float?
+  active       Boolean  @default(true)
+  approved     Boolean  @default(false)
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id])
+  checkIns     CheckIn[]
+  tripSessions TripSession[]
+  odometerLogs OdometerLog[]
+  fuelLogs     FuelLog[]
+  travelClaims TravelClaim[]
+  anomalyRecords AnomalyRecord[]
+
+  @@index([userId, active])
+  @@index([approved])
+}
+
+model VehicleEfficiencyPreset {
+  id          String   @id @default(cuid())
+  make        String
+  model       String?
+  fuelType    FuelType @default(GASOLINE)
+  kmPerLiter  Float
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([make, model, fuelType, active])
+}
+
+model OfficeLocation {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  latitude  Float
+  longitude Float
+  active    Boolean  @default(true)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, isDefault])
+}
+
+model Project {
+  id           String        @id @default(cuid())
+  code         String        @unique
+  name         String
+  customerName String
+  contactName  String?
+  contactPhone String?
+  address      String
+  province     String?
+  latitude     Float?
+  longitude    Float?
+  status       ProjectStatus @default(NEW)
+  description  String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  createdById String
+  ownerId     String?
+  createdBy   User    @relation("ProjectCreator", fields: [createdById], references: [id])
+  owner       User?   @relation("ProjectOwner", fields: [ownerId], references: [id])
+  checkIns    CheckIn[]
+
+  originTravelLegs      TravelLeg[] @relation("TravelOriginProject")
+  destinationTravelLegs TravelLeg[] @relation("TravelDestinationProject")
+  originTripSessions      TripSession[] @relation("TripOriginProject")
+  destinationTripSessions TripSession[] @relation("TripDestinationProject")
+
+  @@index([status])
+  @@index([customerName])
+  @@index([createdById])
+  @@index([ownerId])
+}
+
+model CheckIn {
+  id          String         @id @default(cuid())
+  userId      String
+  vehicleId   String?
+  tripSessionId String? @unique
+  projectId   String
+  checkedAt   DateTime       @default(now())
+  latitude    Float
+  longitude   Float
+  accuracy    Float?
+  photoUrl    String?
+  photoUrls   String[] @default([])
+  purpose     CheckInPurpose
+  note        String?
+  odometerStartKm Float?
+  odometerStartPhotoUrl String?
+  checkedOutAt DateTime?
+  checkoutLatitude Float?
+  checkoutLongitude Float?
+  checkoutAccuracy Float?
+  checkoutPhotoUrl String?
+  checkoutPhotoUrls String[] @default([])
+  checkoutStatus CheckOutStatus?
+  checkoutNote String?
+  odometerEndKm Float?
+  odometerEndPhotoUrl String?
+  odometerDistanceKm Float?
+  createdAt   DateTime       @default(now())
+
+  user        User           @relation(fields: [userId], references: [id])
+  vehicle     Vehicle?       @relation(fields: [vehicleId], references: [id])
+  tripSession TripSession?    @relation(fields: [tripSessionId], references: [id])
+  project     Project        @relation(fields: [projectId], references: [id])
+  odometerLogs OdometerLog[]
+  originLegs  TravelLeg[]    @relation("TravelOriginCheckIn")
+  destinationLeg TravelLeg?   @relation("TravelDestinationCheckIn")
+  notificationLogs NotificationLog[]
+  anomalyRecords AnomalyRecord[]
+
+  @@index([userId, checkedAt])
+  @@index([userId, checkedOutAt])
+  @@index([vehicleId, checkedAt])
+  @@index([projectId, checkedAt])
+}
+
+model TripSession {
+  id                   String         @id @default(cuid())
+  userId               String
+  vehicleId            String?
+  originType           TripOriginType
+  originLabel          String?
+  originLatitude       Float
+  originLongitude      Float
+  originAccuracy       Float?
+  fromProjectId        String?
+  destinationType      TripDestinationType @default(PROJECT)
+  destinationProjectId String?
+  destinationLabel     String?
+  destinationLatitude  Float?
+  destinationLongitude Float?
+  destinationAccuracy  Float?
+  startedAt            DateTime       @default(now())
+  arrivedAt            DateTime?
+  odometerStartKm      Float?
+  odometerStartPhotoUrl String?
+  odometerEndKm        Float?
+  odometerEndPhotoUrl  String?
+  distanceKm           Float?
+  durationMinutes      Int?
+  routeProvider        RouteProvider?
+  distanceStatus       DistanceStatus?
+  status               TripStatus     @default(ACTIVE)
+  cancelReason         String?
+  cancelledAt          DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  user               User       @relation(fields: [userId], references: [id])
+  vehicle            Vehicle?   @relation(fields: [vehicleId], references: [id])
+  fromProject        Project?   @relation("TripOriginProject", fields: [fromProjectId], references: [id])
+  destinationProject Project?   @relation("TripDestinationProject", fields: [destinationProjectId], references: [id])
+  checkIn            CheckIn?
+  travelLeg          TravelLeg?
+
+  @@index([userId, status, startedAt])
+  @@index([destinationProjectId, status])
+  @@index([destinationType, status])
+}
+
+model TravelLeg {
+  id                   String         @id @default(cuid())
+  userId               String
+  tripSessionId        String?        @unique
+  fromCheckInId         String?
+  toCheckInId           String?        @unique
+  fromProjectId         String?
+  toProjectId           String?
+  destinationType       TripDestinationType @default(PROJECT)
+  destinationLabel      String?
+  originLatitude        Float?
+  originLongitude       Float?
+  destinationLatitude   Float
+  destinationLongitude  Float
+  distanceKm            Float
+  durationMinutes       Int?
+  routeProvider         RouteProvider
+  distanceStatus        DistanceStatus
+  routeSummary          String?
+  providerPayload       Json?
+  createdAt             DateTime       @default(now())
+
+  user          User      @relation(fields: [userId], references: [id])
+  tripSession   TripSession? @relation(fields: [tripSessionId], references: [id])
+  fromCheckIn   CheckIn?  @relation("TravelOriginCheckIn", fields: [fromCheckInId], references: [id])
+  toCheckIn     CheckIn?  @relation("TravelDestinationCheckIn", fields: [toCheckInId], references: [id])
+  fromProject   Project?  @relation("TravelOriginProject", fields: [fromProjectId], references: [id])
+  toProject     Project?  @relation("TravelDestinationProject", fields: [toProjectId], references: [id])
+  claim         TravelClaim?
+  anomalyRecords AnomalyRecord[]
+
+  @@index([userId, createdAt])
+  @@index([distanceStatus])
+}
+
+model TravelClaim {
+  id                  String      @id @default(cuid())
+  userId              String
+  vehicleId           String?
+  vehicleName         String?
+  vehicleLicensePlate String?
+  travelLegId         String      @unique
+  status              ClaimStatus @default(PENDING_REVIEW)
+  distanceKm          Float
+  ratePerKm           Decimal     @db.Decimal(12, 2)
+  mileageAmount       Decimal     @db.Decimal(14, 2)
+  kmPerLiter          Float
+  fuelPricePerLiter   Decimal     @db.Decimal(12, 2)
+  fuelEstimate        Decimal     @db.Decimal(14, 2)
+  odometerStartKm     Float?
+  odometerEndKm       Float?
+  odometerDistanceKm  Float?
+  distanceVariancePercent Float?
+  tollAmount          Decimal     @default(0) @db.Decimal(14, 2)
+  parkingAmount       Decimal     @default(0) @db.Decimal(14, 2)
+  otherAmount         Decimal     @default(0) @db.Decimal(14, 2)
+  totalAmount         Decimal     @db.Decimal(14, 2)
+  adminNote           String?
+  overrideReason      String?
+  submittedAt         DateTime    @default(now())
+  reviewedAt          DateTime?
+  reviewedById        String?
+  paidAt              DateTime?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  user       User      @relation("ClaimOwner", fields: [userId], references: [id])
+  vehicle    Vehicle?  @relation(fields: [vehicleId], references: [id])
+  travelLeg  TravelLeg @relation(fields: [travelLegId], references: [id])
+  reviewedBy User?     @relation("ClaimReviewer", fields: [reviewedById], references: [id])
+
+  @@index([status])
+  @@index([userId, submittedAt])
+}
+
+model OdometerLog {
+  id          String          @id @default(cuid())
+  userId      String
+  vehicleId   String?
+  checkInId   String?
+  type        OdometerLogType
+  odometerKm  Float
+  photoUrl    String?
+  latitude    Float?
+  longitude   Float?
+  note        String?
+  createdAt   DateTime        @default(now())
+
+  user     User      @relation(fields: [userId], references: [id])
+  vehicle  Vehicle?  @relation(fields: [vehicleId], references: [id])
+  checkIn  CheckIn?  @relation(fields: [checkInId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([vehicleId, createdAt])
+  @@index([checkInId])
+}
+
+model FuelLog {
+  id                String   @id @default(cuid())
+  userId            String
+  vehicleId         String
+  fueledAt          DateTime @default(now())
+  odometerKm        Float
+  liters            Decimal  @db.Decimal(12, 3)
+  pricePerLiter     Decimal  @db.Decimal(12, 2)
+  totalAmount       Decimal  @db.Decimal(14, 2)
+  receiptPhotoUrl   String?
+  receiptPhotoUrls  String[] @default([])
+  odometerPhotoUrl  String?
+  odometerPhotoUrls String[] @default([])
+  note              String?
+  createdAt         DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+  anomalyRecords AnomalyRecord[]
+
+  @@index([vehicleId, fueledAt])
+  @@index([userId, fueledAt])
+}
+
+model ReimbursementRate {
+  id                String   @id @default(cuid())
+  name              String
+  ratePerKm         Decimal  @db.Decimal(12, 2)
+  kmPerLiter        Float
+  fuelPricePerLiter Decimal  @db.Decimal(12, 2)
+  activeFrom        DateTime @default(now())
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([active, activeFrom])
+}
+
+model SystemSetting {
+  id                           String   @id @default(cuid())
+  appName                      String   @default("PCC OnSite")
+  logoUrl                      String?
+  faviconUrl                   String?
+  checkoutReminderEnabled      Boolean  @default(true)
+  checkoutReminderAfterMinutes Int      @default(480)
+  checkoutReminderEmailEnabled Boolean  @default(false)
+  checkoutReminderLineEnabled  Boolean  @default(false)
+  anomalyGpsThresholdMeters    Int      @default(500)
+  anomalyDistanceVariancePercent Float  @default(20)
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+model NotificationLog {
+  id          String             @id @default(cuid())
+  userId      String?
+  checkInId   String?
+  channel     NotificationChannel
+  type        NotificationType
+  status      NotificationStatus
+  destination String?
+  message     String
+  error       String?
+  sentAt      DateTime?
+  createdAt   DateTime           @default(now())
+
+  user    User?    @relation(fields: [userId], references: [id])
+  checkIn CheckIn? @relation(fields: [checkInId], references: [id])
+
+  @@index([type, status, createdAt])
+  @@unique([checkInId, type, channel])
+  @@index([userId, createdAt])
+}
+
+model AnomalyRecord {
+  id         String          @id @default(cuid())
+  sourceKey  String          @unique
+  type       AnomalyType
+  severity   AnomalySeverity @default(MEDIUM)
+  status     AnomalyStatus   @default(OPEN)
+  userId     String?
+  vehicleId  String?
+  checkInId  String?
+  travelLegId String?
+  fuelLogId  String?
+  title      String
+  detail     String?
+  measuredValue Float?
+  expectedValue Float?
+  metadata   Json?
+  resolvedAt DateTime?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  user      User?       @relation(fields: [userId], references: [id])
+  vehicle   Vehicle?    @relation(fields: [vehicleId], references: [id])
+  checkIn   CheckIn?    @relation(fields: [checkInId], references: [id])
+  travelLeg TravelLeg?  @relation(fields: [travelLegId], references: [id])
+  fuelLog   FuelLog?    @relation(fields: [fuelLogId], references: [id])
+
+  @@index([status, severity, createdAt])
+  @@index([type, status])
+  @@index([userId, createdAt])
+  @@index([vehicleId, createdAt])
+}
+
+model ExportDocument {
+  id            String               @id @default(cuid())
+  documentNo    String               @unique
+  type          ExportDocumentType
+  format        ExportDocumentFormat
+  generatedById String?
+  filters       Json?
+  rowCount      Int                  @default(0)
+  totalAmount   Decimal              @default(0) @db.Decimal(16, 2)
+  fileName      String
+  createdAt     DateTime             @default(now())
+
+  generatedBy User? @relation(fields: [generatedById], references: [id])
+
+  @@index([type, createdAt])
+  @@index([generatedById, createdAt])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  entityType String
+  entityId   String
+  action     String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+}

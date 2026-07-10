@@ -1,0 +1,88 @@
+import "dotenv/config";
+import { randomUUID } from "node:crypto";
+import pg from "pg";
+import { describe, expect, it } from "vitest";
+
+const runDatabaseTests = process.env.RUN_DB_TESTS === "true";
+
+describe.skipIf(!runDatabaseTests)("production database invariants", () => {
+  it("enforces one open visit, one active trip, and supports office travel legs", async () => {
+    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+    await client.query("BEGIN");
+
+    try {
+      const suffix = randomUUID();
+      const userId = `test-user-${suffix}`;
+      const projectId = `test-project-${suffix}`;
+      await client.query(
+        `INSERT INTO "User" ("id", "email", "passwordHash", "name", "role", "active", "createdAt", "updatedAt")
+         VALUES ($1, $2, 'test-only', 'Integration Test', 'EMPLOYEE', true, NOW(), NOW())`,
+        [userId, `integration-${suffix}@example.invalid`]
+      );
+      await client.query(
+        `INSERT INTO "Project" ("id", "code", "name", "customerName", "address", "status", "createdById", "createdAt", "updatedAt")
+         VALUES ($1, $2, 'Test site', 'Test customer', 'Test address', 'NEW', $3, NOW(), NOW())`,
+        [projectId, `TEST-${suffix}`, userId]
+      );
+
+      const firstCheckInId = `checkin-a-${suffix}`;
+      await client.query(
+        `INSERT INTO "CheckIn" ("id", "userId", "projectId", "latitude", "longitude", "purpose", "checkedAt", "createdAt")
+         VALUES ($1, $2, $3, 13.7, 100.5, 'SITE_SURVEY', NOW(), NOW())`,
+        [firstCheckInId, userId, projectId]
+      );
+      await client.query("SAVEPOINT duplicate_checkin");
+      let duplicateCheckInBlocked = false;
+      try {
+        await client.query(
+          `INSERT INTO "CheckIn" ("id", "userId", "projectId", "latitude", "longitude", "purpose", "checkedAt", "createdAt")
+           VALUES ($1, $2, $3, 13.7, 100.5, 'SITE_SURVEY', NOW(), NOW())`,
+          [`checkin-b-${suffix}`, userId, projectId]
+        );
+      } catch {
+        duplicateCheckInBlocked = true;
+        await client.query("ROLLBACK TO SAVEPOINT duplicate_checkin");
+      }
+      expect(duplicateCheckInBlocked).toBe(true);
+
+      const firstTripId = `trip-a-${suffix}`;
+      await client.query(
+        `INSERT INTO "TripSession" ("id", "userId", "originType", "originLatitude", "originLongitude", "destinationType", "status", "startedAt", "createdAt", "updatedAt")
+         VALUES ($1, $2, 'CURRENT_LOCATION', 13.7, 100.5, 'OFFICE', 'ACTIVE', NOW(), NOW(), NOW())`,
+        [firstTripId, userId]
+      );
+      await client.query("SAVEPOINT duplicate_trip");
+      let duplicateTripBlocked = false;
+      try {
+        await client.query(
+          `INSERT INTO "TripSession" ("id", "userId", "originType", "originLatitude", "originLongitude", "destinationType", "status", "startedAt", "createdAt", "updatedAt")
+           VALUES ($1, $2, 'CURRENT_LOCATION', 13.7, 100.5, 'OFFICE', 'ACTIVE', NOW(), NOW(), NOW())`,
+          [`trip-b-${suffix}`, userId]
+        );
+      } catch {
+        duplicateTripBlocked = true;
+        await client.query("ROLLBACK TO SAVEPOINT duplicate_trip");
+      }
+      expect(duplicateTripBlocked).toBe(true);
+
+      const officeLeg = await client.query(
+        `INSERT INTO "TravelLeg" (
+          "id", "userId", "tripSessionId", "destinationType", "destinationLabel",
+          "originLatitude", "originLongitude", "destinationLatitude", "destinationLongitude",
+          "distanceKm", "routeProvider", "distanceStatus", "createdAt"
+        ) VALUES ($1, $2, $3, 'OFFICE', 'Head office', 13.7, 100.5, 13.71, 100.51, 2.5, 'HAVERSINE', 'PENDING_REVIEW', NOW())
+        RETURNING "toProjectId", "toCheckInId", "destinationType"`,
+        [`office-leg-${suffix}`, userId, firstTripId]
+      );
+      expect(officeLeg.rows[0]).toMatchObject({
+        toProjectId: null,
+        toCheckInId: null,
+        destinationType: "OFFICE"
+      });
+    } finally {
+      await client.query("ROLLBACK");
+      await client.end();
+    }
+  });
+});

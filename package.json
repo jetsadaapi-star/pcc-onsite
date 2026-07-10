@@ -1,0 +1,64 @@
+{
+  "name": "direct-field-checkin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "prebuild": "prisma generate",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:integration": "cross-env RUN_DB_TESTS=true vitest run src/lib/database.integration.test.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@fontsource/noto-sans-thai": "^5.2.8",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "7.8.0",
+    "bcryptjs": "^3.0.2",
+    "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
+    "leaflet": "^1.9.4",
+    "lucide-react": "1.23.0",
+    "next": "16.2.10",
+    "nodemailer": "^9.0.3",
+    "pdfkit": "^0.19.1",
+    "pg": "^8.22.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "react-leaflet": "^5.0.0",
+    "server-only": "^0.0.1",
+    "tesseract.js": "^7.0.0",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/leaflet": "^1.9.21",
+    "@types/node": "^26.0.0",
+    "@types/nodemailer": "^8.0.1",
+    "@types/pdfkit": "^0.17.6",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "cross-env": "^10.1.0",
+    "eslint": "^9.39.0",
+    "eslint-config-next": "16.2.10",
+    "prisma": "7.8.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.15"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "overrides": {
+    "@hono/node-server": "1.19.13",
+    "postcss": "8.5.16",
+    "uuid": "11.1.1"
+  }
+}
