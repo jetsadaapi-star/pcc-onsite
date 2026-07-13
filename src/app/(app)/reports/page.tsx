@@ -42,7 +42,13 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       include: {
         user: { select: { id: true, name: true, role: true } },
         vehicle: { select: { id: true, name: true, licensePlate: true } },
-        travelLeg: { include: { fromProject: true, toProject: true } }
+        travelLeg: {
+          select: {
+            destinationLabel: true,
+            fromProject: { select: { name: true } },
+            toProject: { select: { name: true } }
+          }
+        }
       },
       take: 100
     }),

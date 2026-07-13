@@ -24,14 +24,11 @@ export default async function AdminPage() {
 
   const [
     users,
-    projects,
-    activeProjects,
+    projectStatusCounts,
     missingLocation,
     todayCheckIns,
     pendingClaims,
     distance,
-    quotedProjects,
-    constructionProjects,
     recentCheckIns,
     latestClaims,
     latestProjects,
@@ -40,8 +37,7 @@ export default async function AdminPage() {
     mapTrips
   ] = await Promise.all([
     prisma.user.count({ where: { active: true } }),
-    prisma.project.count(),
-    prisma.project.count({ where: { status: { notIn: ["COMPLETED", "CLOSED_LOST", "CANCELLED"] } } }),
+    prisma.project.groupBy({ by: ["status"], _count: true }),
     prisma.project.count({ where: { OR: [{ latitude: null }, { longitude: null }] } }),
     prisma.checkIn.count({ where: { checkedAt: { gte: todayStart } } }),
     prisma.travelClaim.aggregate({
@@ -50,8 +46,6 @@ export default async function AdminPage() {
       _count: true
     }),
     prisma.travelLeg.aggregate({ _sum: { distanceKm: true } }),
-    prisma.project.count({ where: { status: { in: ["QUOTING", "QUOTED", "NEGOTIATING"] } } }),
-    prisma.project.count({ where: { status: "IN_CONSTRUCTION" } }),
     prisma.checkIn.findMany({
       orderBy: { checkedAt: "desc" },
       take: 7,
@@ -66,7 +60,13 @@ export default async function AdminPage() {
       take: 5,
       include: {
         user: { select: { name: true } },
-        travelLeg: { include: { fromProject: true, toProject: true } }
+        travelLeg: {
+          select: {
+            destinationLabel: true,
+            fromProject: { select: { name: true } },
+            toProject: { select: { name: true } }
+          }
+        }
       }
     }),
     prisma.project.findMany({
@@ -118,6 +118,13 @@ export default async function AdminPage() {
     })
   ]);
 
+  const projectCount = (statuses: string[]) => projectStatusCounts
+    .filter((item) => statuses.includes(item.status))
+    .reduce((sum, item) => sum + item._count, 0);
+  const projects = projectStatusCounts.reduce((sum, item) => sum + item._count, 0);
+  const activeProjects = projectCount(["NEW", "CONTACTED", "SURVEY_SCHEDULED", "SURVEYED", "QUOTING", "QUOTED", "NEGOTIATING", "WON", "IN_CONSTRUCTION", "ON_HOLD"]);
+  const quotedProjects = projectCount(["QUOTING", "QUOTED", "NEGOTIATING"]);
+  const constructionProjects = projectCount(["IN_CONSTRUCTION"]);
   const pendingAmount = pendingClaims._sum.totalAmount ?? 0;
   const projectMix = [
     { label: "Active", value: activeProjects, tone: "blue" },

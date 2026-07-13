@@ -10,7 +10,7 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260710132000_financial_decimals";
+const prismaSchemaVersion = "20260713112000_performance_indexes";
 
 function createPool() {
   const pool = new Pool({

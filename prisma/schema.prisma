@@ -277,6 +277,7 @@ model Project {
   @@index([customerName])
   @@index([createdById])
   @@index([ownerId])
+  @@index([updatedAt])
 }
 
 model CheckIn {
@@ -322,6 +323,7 @@ model CheckIn {
   @@index([userId, checkedOutAt])
   @@index([vehicleId, checkedAt])
   @@index([projectId, checkedAt])
+  @@index([checkedAt])
 }
 
 model TripSession {
@@ -364,6 +366,7 @@ model TripSession {
   travelLeg          TravelLeg?
 
   @@index([userId, status, startedAt])
+  @@index([status, startedAt])
   @@index([destinationProjectId, status])
   @@index([destinationType, status])
 }
@@ -441,6 +444,7 @@ model TravelClaim {
 
   @@index([status])
   @@index([userId, submittedAt])
+  @@index([status, submittedAt])
 }
 
 model OdometerLog {
@@ -487,6 +491,7 @@ model FuelLog {
 
   @@index([vehicleId, fueledAt])
   @@index([userId, fueledAt])
+  @@index([fueledAt])
 }
 
 model ReimbursementRate {

@@ -2,6 +2,7 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 
@@ -71,7 +72,7 @@ export async function getSessionUserId() {
   return { userId, sessionVersion };
 }
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async function getCurrentUser() {
   const session = await getSessionUserId();
   if (!session) return null;
 
@@ -87,7 +88,7 @@ export async function getCurrentUser() {
       profilePhotoUrl: true
     }
   });
-}
+});
 
 export async function requireUser() {
   const user = await getCurrentUser();

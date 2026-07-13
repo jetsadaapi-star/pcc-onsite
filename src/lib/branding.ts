@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { prisma } from "@/lib/db";
 
 export type AppBranding = {
@@ -13,7 +14,7 @@ export const defaultBranding: AppBranding = {
   faviconUrl: null
 };
 
-export async function getAppBranding(): Promise<AppBranding> {
+export const getAppBranding = cache(async function getAppBranding(): Promise<AppBranding> {
   try {
     const setting = await prisma.systemSetting.findFirst({
       orderBy: { updatedAt: "desc" },
@@ -28,4 +29,4 @@ export async function getAppBranding(): Promise<AppBranding> {
   } catch {
     return defaultBranding;
   }
-}
+});

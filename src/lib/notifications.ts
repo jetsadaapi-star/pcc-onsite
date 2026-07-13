@@ -109,12 +109,25 @@ export async function processCheckoutReminders(): Promise<ReminderResult> {
   }
 
   const afterMinutes = setting?.checkoutReminderAfterMinutes ?? 480;
+  const pendingChannelFilters = [
+    setting?.checkoutReminderEmailEnabled
+      ? { notificationLogs: { none: { type: "CHECKOUT_REMINDER" as const, channel: "EMAIL" as const, status: "SENT" as const } } }
+      : null,
+    setting?.checkoutReminderLineEnabled
+      ? { notificationLogs: { none: { type: "CHECKOUT_REMINDER" as const, channel: "LINE" as const, status: "SENT" as const } } }
+      : null
+  ].filter((filter): filter is NonNullable<typeof filter> => filter !== null);
+  if (!pendingChannelFilters.length) {
+    return { scanned: 0, sent: 0, failed: 0, skipped: 0 };
+  }
+
   const cutoff = new Date(Date.now() - afterMinutes * 60 * 1000);
   const openVisits = await prisma.checkIn.findMany({
     where: {
       checkedOutAt: null,
       checkedAt: { lte: cutoff },
       user: { checkoutReminderEnabled: true, active: true },
+      OR: pendingChannelFilters
     },
     include: {
       user: { select: { id: true, name: true, email: true, lineUserId: true } },
@@ -124,6 +137,7 @@ export async function processCheckoutReminders(): Promise<ReminderResult> {
         select: { channel: true, status: true }
       }
     },
+    orderBy: { checkedAt: "asc" },
     take: 100
   });
 

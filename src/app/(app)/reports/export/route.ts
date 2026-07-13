@@ -1,6 +1,4 @@
 import path from "node:path";
-import ExcelJS from "exceljs";
-import PDFDocument from "pdfkit";
 import { NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -46,6 +44,7 @@ async function pdfBuffer(input: {
   rows: unknown[][];
   totalAmount: number;
 }) {
+  const { default: PDFDocument } = await import("pdfkit");
   const doc = new PDFDocument({ size: "A4", margin: 36, bufferPages: true });
   const chunks: Buffer[] = [];
   doc.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
@@ -113,7 +112,13 @@ export async function GET(request: NextRequest) {
       user: { select: { name: true, role: true } },
       vehicle: { select: { name: true, licensePlate: true } },
       reviewedBy: { select: { name: true } },
-      travelLeg: { include: { fromProject: true, toProject: true } }
+      travelLeg: {
+        select: {
+          destinationLabel: true,
+          fromProject: { select: { name: true } },
+          toProject: { select: { name: true } }
+        }
+      }
     },
     take: 5000
   });
@@ -192,6 +197,7 @@ export async function GET(request: NextRequest) {
   });
 
   if (safeFormat === "excel") {
+    const { default: ExcelJS } = await import("exceljs");
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "PCC OnSite";
     workbook.created = new Date();

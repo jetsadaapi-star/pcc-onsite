@@ -889,6 +889,20 @@ export async function createCheckInAction(formData: FormData) {
         where: { userId: user.id, active: true, approved: true, kmPerLiter: { not: null } },
         orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }]
       }));
+  const routeOrigin = activeTrip
+    ? { latitude: activeTrip.originLatitude, longitude: activeTrip.originLongitude }
+    : previous
+      ? {
+          latitude: previous.checkoutLatitude ?? previous.latitude,
+          longitude: previous.checkoutLongitude ?? previous.longitude
+        }
+      : null;
+  const [route, rate] = routeOrigin
+    ? await Promise.all([
+        getRouteDistance(routeOrigin, { latitude, longitude }),
+        prisma.reimbursementRate.findFirst({ where: { active: true }, orderBy: { activeFrom: "desc" } })
+      ])
+    : [null, null];
   const photoUrls = await saveImagesFromForm(formData, "photos", "check-ins", user.id);
   const legacyPhotoUrl = await saveImageFromForm(formData, "photo", "check-ins", user.id);
   const allPhotoUrls = legacyPhotoUrl ? [legacyPhotoUrl, ...photoUrls] : photoUrls;
@@ -943,14 +957,7 @@ export async function createCheckInAction(formData: FormData) {
   }
 
   if (activeTrip) {
-    const route = await getRouteDistance(
-      { latitude: activeTrip.originLatitude, longitude: activeTrip.originLongitude },
-      { latitude, longitude }
-    );
-    const rate = await tx.reimbursementRate.findFirst({
-      where: { active: true },
-      orderBy: { activeFrom: "desc" }
-    });
+    if (!route) throw new Error("Route calculation is unavailable");
     const kmPerLiter = vehicle?.kmPerLiter ?? rate?.kmPerLiter ?? 12;
     const reimbursement = calculateReimbursement({
       distanceKm: route.distanceKm,
@@ -983,7 +990,6 @@ export async function createCheckInAction(formData: FormData) {
         routeProvider: route.routeProvider,
         distanceStatus: distanceVariancePercent !== undefined && distanceVariancePercent > 20 ? "PENDING_REVIEW" : route.distanceStatus,
         routeSummary: route.routeSummary,
-        providerPayload: route.providerPayload === undefined ? undefined : JSON.parse(JSON.stringify(route.providerPayload)),
         claim: {
           create: {
             userId: user.id,
@@ -1036,17 +1042,7 @@ export async function createCheckInAction(formData: FormData) {
       }
     });
   } else if (previous) {
-    const route = await getRouteDistance(
-      {
-        latitude: previous.checkoutLatitude ?? previous.latitude,
-        longitude: previous.checkoutLongitude ?? previous.longitude
-      },
-      { latitude, longitude }
-    );
-    const rate = await tx.reimbursementRate.findFirst({
-      where: { active: true },
-      orderBy: { activeFrom: "desc" }
-    });
+    if (!route) throw new Error("Route calculation is unavailable");
     const claimVehicle = vehicle ?? previous.vehicle;
     const kmPerLiter = claimVehicle?.kmPerLiter ?? rate?.kmPerLiter ?? 12;
     const reimbursement = calculateReimbursement({
@@ -1080,7 +1076,6 @@ export async function createCheckInAction(formData: FormData) {
         routeProvider: route.routeProvider,
         distanceStatus: distanceVariancePercent !== undefined && distanceVariancePercent > 20 ? "PENDING_REVIEW" : route.distanceStatus,
         routeSummary: route.routeSummary,
-        providerPayload: route.providerPayload === undefined ? undefined : JSON.parse(JSON.stringify(route.providerPayload)),
         claim: {
           create: {
             userId: user.id,
