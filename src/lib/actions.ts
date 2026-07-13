@@ -5,6 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { put } from "@vercel/blob";
 import { z } from "zod";
 import { destroySession, hashPassword, requireAdmin, requireUser, verifyPassword } from "@/lib/auth";
 import {
@@ -79,6 +80,17 @@ async function saveImageFromForm(formData: FormData, field: string, folder: stri
   if (!ext) throw new Error("Only JPG, PNG, and WEBP image files are supported.");
   const fileName = `${userId}-${randomUUID()}.${ext}`;
   const isPublicBranding = folder === "branding";
+  const publicPath = `/api/uploads/${folder}/${fileName}`;
+
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    await put(`uploads/${folder}/${fileName}`, bytes, {
+      access: "private",
+      contentType: value.type,
+      cacheControlMaxAge: isPublicBranding ? 86400 : 300
+    });
+    return publicPath;
+  }
+
   const storageRoot = process.env.UPLOAD_STORAGE_DIR
     ? path.resolve(process.env.UPLOAD_STORAGE_DIR)
     : path.join(process.cwd(), "storage", "uploads");
@@ -87,7 +99,7 @@ async function saveImageFromForm(formData: FormData, field: string, folder: stri
     : path.join(storageRoot, folder);
   await mkdir(uploadDir, { recursive: true });
   await writeFile(path.join(uploadDir, fileName), bytes);
-  return isPublicBranding ? `/uploads/${folder}/${fileName}` : `/api/uploads/${folder}/${fileName}`;
+  return isPublicBranding ? `/uploads/${folder}/${fileName}` : publicPath;
 }
 
 async function saveImagesFromForm(formData: FormData, field: string, folder: string, userId: string) {
