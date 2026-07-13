@@ -19,7 +19,9 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${branding.appName}`
     },
     description: "ระบบเช็คอินหน้างานและคำนวณค่าเดินทาง",
-    icons: branding.faviconUrl ? { icon: branding.faviconUrl, shortcut: branding.faviconUrl, apple: branding.faviconUrl } : undefined
+    icons: branding.faviconUrl
+      ? { icon: branding.faviconUrl, shortcut: branding.faviconUrl, apple: branding.faviconUrl }
+      : { icon: "/icon.svg", shortcut: "/icon.svg", apple: "/icon.svg" }
   };
 }
 
