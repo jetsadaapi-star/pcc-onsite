@@ -120,8 +120,15 @@ export async function GET(request: NextRequest) {
         }
       }
     },
-    take: 5000
+    take: 5001
   });
+
+  if (claims.length > 5000) {
+    return Response.json(
+      { error: "The export contains more than 5,000 rows. Narrow the date range or filters and try again." },
+      { status: 413 }
+    );
+  }
 
   const header = [
     "วันที่ส่งรายการ",

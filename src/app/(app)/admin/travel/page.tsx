@@ -151,9 +151,11 @@ function TravelReviewActions({
           <button className="button secondary" type="submit">บันทึกรายละเอียด</button>
         </form>
       </details> : null}
-      <ConfirmActionForm action={deleteTravelClaimAction} fields={{ id: claim.id }} message="ยืนยันลบรายการเบิกเดินทางนี้ใช่หรือไม่?">
-        <button className="admin-travel-action reject" type="submit"><Trash2 size={14} /> ลบรายการ</button>
-      </ConfirmActionForm>
+      {claim.status !== "APPROVED" && claim.status !== "PAID" ? (
+        <ConfirmActionForm action={deleteTravelClaimAction} fields={{ id: claim.id }} message="ยืนยันลบรายการเบิกเดินทางนี้ใช่หรือไม่?">
+          <button className="admin-travel-action reject" type="submit"><Trash2 size={14} /> ลบรายการ</button>
+        </ConfirmActionForm>
+      ) : null}
     </div>
   );
 }

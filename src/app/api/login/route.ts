@@ -34,7 +34,12 @@ export async function POST(request: Request) {
       return redirectTo("/login?error=invalid");
     }
 
-    await prisma.loginThrottle.deleteMany({ where: { key: throttleKey } });
+    await Promise.all([
+      prisma.loginThrottle.deleteMany({ where: { key: throttleKey } }),
+      prisma.loginThrottle.deleteMany({
+        where: { updatedAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } }
+      })
+    ]);
     await createSession(user.id, user.sessionVersion);
 
     return redirectTo(user.role === "ADMIN" ? "/admin" : "/dashboard");

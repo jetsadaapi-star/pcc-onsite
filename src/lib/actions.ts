@@ -1,11 +1,11 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { put } from "@vercel/blob";
+import { del, put } from "@vercel/blob";
 import { z } from "zod";
 import { destroySession, hashPassword, requireAdmin, requireUser, verifyPassword } from "@/lib/auth";
 import {
@@ -69,7 +69,37 @@ function detectImageExtension(bytes: Buffer) {
   return undefined;
 }
 
+function assertFormUploadLimit(formData: FormData) {
+  const totalBytes = Array.from(formData.values()).reduce(
+    (sum, value) => sum + (value instanceof File ? value.size : 0),
+    0
+  );
+  if (totalBytes > 7 * 1024 * 1024) {
+    throw new Error("Total upload size must not exceed 7 MB per submission.");
+  }
+}
+
+async function deleteStoredFile(publicUrl?: string | null) {
+  if (!publicUrl?.startsWith("/api/uploads/")) return;
+  const pathname = publicUrl.slice("/api/".length);
+  try {
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      await del(pathname);
+      return;
+    }
+    const storageRoot = process.env.UPLOAD_STORAGE_DIR
+      ? path.resolve(process.env.UPLOAD_STORAGE_DIR)
+      : path.join(process.cwd(), "storage", "uploads");
+    const relativePath = pathname.replace(/^uploads\//, "");
+    const filePath = path.resolve(storageRoot, relativePath);
+    if (filePath.startsWith(`${storageRoot}${path.sep}`)) await unlink(filePath).catch(() => undefined);
+  } catch {
+    // Storage cleanup is best effort and must not roll back saved business data.
+  }
+}
+
 async function saveImageFromForm(formData: FormData, field: string, folder: string, userId: string) {
+  assertFormUploadLimit(formData);
   const value = formData.get(field);
   if (!(value instanceof File) || value.size === 0) return undefined;
   if (value.size > 5 * 1024 * 1024) throw new Error("Image is too large. Maximum file size is 5 MB.");
@@ -103,6 +133,7 @@ async function saveImageFromForm(formData: FormData, field: string, folder: stri
 }
 
 async function saveImagesFromForm(formData: FormData, field: string, folder: string, userId: string) {
+  assertFormUploadLimit(formData);
   const values = formData.getAll(field).filter((value): value is File => value instanceof File && value.size > 0);
   if (values.length > 8) throw new Error("แนบรูปได้สูงสุด 8 รูปต่อรายการ");
   const urls = await Promise.all(values.map(async (value) => {
@@ -152,8 +183,8 @@ const projectSchema = z.object({
   contactPhone: z.string().optional(),
   address: z.string().min(4),
   province: z.string().optional(),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
   status: z.enum(["NEW", "CONTACTED", "SURVEY_SCHEDULED", "SURVEYED", "QUOTING", "QUOTED", "NEGOTIATING", "WON", "IN_CONSTRUCTION", "COMPLETED", "ON_HOLD", "CLOSED_LOST", "CANCELLED"]).optional(),
   description: z.string().optional()
 });
@@ -206,8 +237,8 @@ const officeLocationSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2),
   address: z.string().optional(),
-  latitude: z.number(),
-  longitude: z.number(),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
   active: z.boolean().optional(),
   isDefault: z.boolean().optional()
 });
@@ -243,6 +274,7 @@ export async function logoutAction() {
 
 export async function updateProfilePhotoAction(formData: FormData) {
   const user = await requireUser();
+  const previousPhotoUrl = user.profilePhotoUrl;
   const photoUrl = await saveImageFromForm(formData, "profilePhoto", "profiles", user.id);
   if (!photoUrl) throw new Error("กรุณาเลือกรูปโปรไฟล์");
 
@@ -260,6 +292,7 @@ export async function updateProfilePhotoAction(formData: FormData) {
       metadata: { profilePhotoUrl: photoUrl }
     }
   });
+  if (previousPhotoUrl && previousPhotoUrl !== photoUrl) await deleteStoredFile(previousPhotoUrl);
 
   revalidatePath("/profile");
   revalidatePath("/dashboard");
@@ -268,6 +301,7 @@ export async function updateProfilePhotoAction(formData: FormData) {
 
 export async function removeProfilePhotoAction() {
   const user = await requireUser();
+  const previousPhotoUrl = user.profilePhotoUrl;
 
   await prisma.user.update({
     where: { id: user.id },
@@ -283,6 +317,7 @@ export async function removeProfilePhotoAction() {
       metadata: {}
     }
   });
+  await deleteStoredFile(previousPhotoUrl);
 
   revalidatePath("/profile");
   revalidatePath("/dashboard");
@@ -1859,6 +1894,8 @@ export async function updateSystemBrandingAction(formData: FormData) {
       metadata: { appName, logoChanged: Boolean(logoUrl), faviconChanged: Boolean(faviconUrl) }
     }
   });
+  if (logoUrl && currentLogoUrl && logoUrl !== currentLogoUrl) await deleteStoredFile(currentLogoUrl);
+  if (faviconUrl && currentFaviconUrl && faviconUrl !== currentFaviconUrl) await deleteStoredFile(currentFaviconUrl);
 
   revalidatePath("/");
   revalidatePath("/login");
@@ -1968,9 +2005,29 @@ export async function deleteTravelClaimAction(formData: FormData) {
   const admin = await requireAdmin();
   const id = getString(formData, "id");
   if (!id) throw new Error("Missing claim id");
-  const claim = await prisma.travelClaim.delete({ where: { id } });
-  await prisma.activityLog.create({
-    data: { actorId: admin.id, entityType: "TravelClaim", entityId: id, action: "DELETE_TRAVEL_CLAIM", metadata: { userId: claim.userId, totalAmount: String(claim.totalAmount) } }
+  const existingClaim = await prisma.travelClaim.findUnique({
+    where: { id },
+    select: { status: true, userId: true, totalAmount: true }
+  });
+  if (!existingClaim) throw new Error("Travel claim not found");
+  if (existingClaim.status === "APPROVED" || existingClaim.status === "PAID") {
+    throw new Error("Approved or paid travel claims cannot be deleted. Reject or reverse the accounting status first.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const deleted = await tx.travelClaim.deleteMany({
+      where: { id, status: { notIn: ["APPROVED", "PAID"] } }
+    });
+    if (deleted.count !== 1) throw new Error("The travel claim status changed and it can no longer be deleted.");
+    await tx.activityLog.create({
+      data: {
+        actorId: admin.id,
+        entityType: "TravelClaim",
+        entityId: id,
+        action: "DELETE_TRAVEL_CLAIM",
+        metadata: { userId: existingClaim.userId, totalAmount: String(existingClaim.totalAmount) }
+      }
+    });
   });
   revalidatePath("/admin/travel");
   revalidatePath("/reports");
@@ -1980,13 +2037,54 @@ export async function deleteCheckInAction(formData: FormData) {
   const admin = await requireAdmin();
   const id = getString(formData, "id");
   if (!id) throw new Error("Missing check-in id");
-  const checkIn = await prisma.checkIn.findUnique({ where: { id }, select: { id: true, userId: true, projectId: true, tripSessionId: true } });
+  const [checkIn, protectedClaim] = await Promise.all([
+    prisma.checkIn.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        projectId: true,
+        tripSessionId: true,
+        photoUrl: true,
+        photoUrls: true,
+        checkoutPhotoUrl: true,
+        checkoutPhotoUrls: true,
+        odometerStartPhotoUrl: true,
+        odometerEndPhotoUrl: true
+      }
+    }),
+    prisma.travelClaim.findFirst({
+      where: {
+        status: { in: ["APPROVED", "PAID"] },
+        travelLeg: { is: { OR: [{ fromCheckInId: id }, { toCheckInId: id }] } }
+      },
+      select: { id: true, status: true }
+    })
+  ]);
   if (!checkIn) throw new Error("Check-in not found");
+  if (protectedClaim) {
+    throw new Error(`This check-in is linked to a ${protectedClaim.status.toLowerCase()} travel claim and cannot be deleted.`);
+  }
+
+  const storedFileUrls = [
+    checkIn.photoUrl,
+    ...checkIn.photoUrls,
+    checkIn.checkoutPhotoUrl,
+    ...checkIn.checkoutPhotoUrls,
+    checkIn.odometerStartPhotoUrl,
+    checkIn.odometerEndPhotoUrl
+  ].filter((url): url is string => Boolean(url));
 
   await prisma.$transaction(async (tx) => {
     const legs = await tx.travelLeg.findMany({ where: { OR: [{ fromCheckInId: id }, { toCheckInId: id }] }, select: { id: true } });
     const legIds = legs.map((leg) => leg.id);
     if (legIds.length) {
+      const protectedClaimCount = await tx.travelClaim.count({
+        where: { travelLegId: { in: legIds }, status: { in: ["APPROVED", "PAID"] } }
+      });
+      if (protectedClaimCount > 0) {
+        throw new Error("This check-in is linked to an approved or paid travel claim and cannot be deleted.");
+      }
       await tx.anomalyRecord.deleteMany({ where: { travelLegId: { in: legIds } } });
       await tx.travelClaim.deleteMany({ where: { travelLegId: { in: legIds } } });
       await tx.travelLeg.deleteMany({ where: { id: { in: legIds } } });
@@ -2001,6 +2099,8 @@ export async function deleteCheckInAction(formData: FormData) {
       data: { actorId: admin.id, entityType: "CheckIn", entityId: id, action: "DELETE_CHECK_IN", metadata: { userId: checkIn.userId, projectId: checkIn.projectId } }
     });
   });
+
+  await Promise.allSettled(Array.from(new Set(storedFileUrls)).map(deleteStoredFile));
 
   revalidatePath("/admin/check-ins");
   revalidatePath("/admin/travel");
@@ -2243,6 +2343,7 @@ export async function deleteUserAction(formData: FormData) {
     select: {
       email: true,
       role: true,
+      profilePhotoUrl: true,
       _count: {
         select: {
           createdProjects: true,
@@ -2286,6 +2387,8 @@ export async function deleteUserAction(formData: FormData) {
       }
     })
   ]);
+
+  await deleteStoredFile(target.profilePhotoUrl);
 
   revalidatePath("/admin/users");
 }
