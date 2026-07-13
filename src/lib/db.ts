@@ -1,19 +1,34 @@
 import "server-only";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { attachDatabasePool } from "@vercel/functions";
+import { Pool } from "pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
+  prismaPool?: Pool;
   prismaSchemaVersion?: string;
 };
 
 const prismaSchemaVersion = "20260710132000_financial_decimals";
 
+function createPool() {
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL ?? "",
+    max: 5,
+    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 30_000
+  });
+
+  if (process.env.VERCEL) attachDatabasePool(pool);
+  return pool;
+}
+
+const pool = globalForPrisma.prismaPool ?? createPool();
+
 function createPrismaClient() {
   return new PrismaClient({
-    adapter: new PrismaPg({
-      connectionString: process.env.DATABASE_URL ?? ""
-    }),
+    adapter: new PrismaPg(pool),
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"]
   });
 }
@@ -37,7 +52,6 @@ export const prisma = isCurrentClient(globalForPrisma.prisma)
   ? globalForPrisma.prisma!
   : createPrismaClient();
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-  globalForPrisma.prismaSchemaVersion = prismaSchemaVersion;
-}
+globalForPrisma.prisma = prisma;
+globalForPrisma.prismaPool = pool;
+globalForPrisma.prismaSchemaVersion = prismaSchemaVersion;

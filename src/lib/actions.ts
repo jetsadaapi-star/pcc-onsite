@@ -105,17 +105,14 @@ async function saveImageFromForm(formData: FormData, field: string, folder: stri
 async function saveImagesFromForm(formData: FormData, field: string, folder: string, userId: string) {
   const values = formData.getAll(field).filter((value): value is File => value instanceof File && value.size > 0);
   if (values.length > 8) throw new Error("แนบรูปได้สูงสุด 8 รูปต่อรายการ");
-  const urls: string[] = [];
-
-  for (const value of values) {
+  const urls = await Promise.all(values.map(async (value) => {
     if (!value.type.startsWith("image/")) throw new Error("รองรับเฉพาะไฟล์รูปภาพ");
     const imageForm = new FormData();
     imageForm.set(field, value);
-    const url = await saveImageFromForm(imageForm, field, folder, userId);
-    if (url) urls.push(url);
-  }
+    return saveImageFromForm(imageForm, field, folder, userId);
+  }));
 
-  return urls;
+  return urls.filter((url): url is string => Boolean(url));
 }
 
 async function findVehicleEfficiencyPreset(input: { make?: string; model?: string; fuelType?: string }) {
@@ -350,16 +347,17 @@ export async function startTripAction(formData: FormData) {
     odometerStartKm: getNumber(formData, "odometerStartKm")
   });
 
-  const activeVisit = await prisma.checkIn.findFirst({ where: { userId: user.id, checkedOutAt: null } });
+  const [activeVisit, activeTrip, defaultOffice] = await Promise.all([
+    prisma.checkIn.findFirst({ where: { userId: user.id, checkedOutAt: null } }),
+    prisma.tripSession.findFirst({ where: { userId: user.id, status: "ACTIVE" } }),
+    prisma.officeLocation.findFirst({
+      where: { active: true },
+      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }]
+    })
+  ]);
   if (activeVisit) redirect("/check-in?active=1");
 
-  const activeTrip = await prisma.tripSession.findFirst({ where: { userId: user.id, status: "ACTIVE" } });
   if (activeTrip) redirect("/check-in?trip=active");
-
-  const defaultOffice = await prisma.officeLocation.findFirst({
-    where: { active: true },
-    orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }]
-  });
 
   let destinationLabel = "บริษัท/สำนักงาน";
   if (input.destinationType === "PROJECT") {
