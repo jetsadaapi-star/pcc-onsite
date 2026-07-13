@@ -1,10 +1,9 @@
 import { createHash } from "node:crypto";
-import { NextResponse } from "next/server";
 import { createSession, verifyPassword } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
-function redirectTo(request: Request, path: string) {
-  return NextResponse.redirect(new URL(path, request.url), 303);
+function redirectTo(path: string) {
+  return new Response(null, { status: 303, headers: { Location: path } });
 }
 
 export async function POST(request: Request) {
@@ -21,7 +20,7 @@ export async function POST(request: Request) {
     ]);
 
     if (throttle?.blockedUntil && throttle.blockedUntil > new Date()) {
-      return redirectTo(request, "/login?error=locked");
+      return redirectTo("/login?error=locked");
     }
 
     if (!user || !(await verifyPassword(password, user.passwordHash))) {
@@ -32,16 +31,16 @@ export async function POST(request: Request) {
         create: { key: throttleKey, failedCount, blockedUntil },
         update: { failedCount, blockedUntil }
       });
-      return redirectTo(request, "/login?error=invalid");
+      return redirectTo("/login?error=invalid");
     }
 
     await prisma.loginThrottle.deleteMany({ where: { key: throttleKey } });
     await createSession(user.id, user.sessionVersion);
 
-    return redirectTo(request, user.role === "ADMIN" ? "/admin" : "/dashboard");
+    return redirectTo(user.role === "ADMIN" ? "/admin" : "/dashboard");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const code = message.includes("database system is starting up") ? "db-starting" : "db";
-    return redirectTo(request, `/login?error=${code}`);
+    return redirectTo(`/login?error=${code}`);
   }
 }
