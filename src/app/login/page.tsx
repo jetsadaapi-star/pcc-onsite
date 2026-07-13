@@ -11,7 +11,6 @@ import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/login-form";
 import { getCurrentUser } from "@/lib/auth";
 import { getAppBranding } from "@/lib/branding";
-import { loginAction } from "./actions";
 
 const errorMessages: Record<string, string> = {
   invalid: "อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบแล้วลองอีกครั้ง",
@@ -114,7 +113,7 @@ export default async function LoginPage({
           {error ? <div className="login-alert error" role="alert">{error}</div> : null}
           {notice ? <div className="login-alert success" role="status">{notice}</div> : null}
 
-          <LoginForm action={loginAction} />
+          <LoginForm />
 
           <div className="login-help">
             <span><ShieldCheck size={17} /></span>

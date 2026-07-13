@@ -4,10 +4,6 @@ import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { ArrowRight, Eye, EyeOff, KeyRound, LoaderCircle, Mail } from "lucide-react";
 
-type LoginFormProps = {
-  action: (formData: FormData) => void | Promise<void>;
-};
-
 function LoginSubmitButton() {
   const { pending } = useFormStatus();
 
@@ -19,11 +15,11 @@ function LoginSubmitButton() {
   );
 }
 
-export function LoginForm({ action }: LoginFormProps) {
+export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <form action={action} className="login-form">
+    <form action="/api/login" method="post" className="login-form">
       <div className="login-field">
         <label htmlFor="email">อีเมล</label>
         <div className="login-input-wrap">

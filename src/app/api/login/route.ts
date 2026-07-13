@@ -1,20 +1,19 @@
-"use server";
-
 import { createHash } from "node:crypto";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 import { createSession, verifyPassword } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
-export async function loginAction(formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const password = String(formData.get("password") ?? "");
-  let redirectTo = "/dashboard";
+function redirectTo(request: Request, path: string) {
+  return NextResponse.redirect(new URL(path, request.url), 303);
+}
 
+export async function POST(request: Request) {
   try {
-    const requestHeaders = await headers();
-    const forwardedFor = requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim();
-    const ip = forwardedFor || requestHeaders.get("x-real-ip") || "unknown";
+    const formData = await request.formData();
+    const email = String(formData.get("email") ?? "").trim().toLowerCase();
+    const password = String(formData.get("password") ?? "");
+    const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+    const ip = forwardedFor || request.headers.get("x-real-ip") || "unknown";
     const throttleKey = createHash("sha256").update(`${email}|${ip}`).digest("hex");
     const [user, throttle] = await Promise.all([
       prisma.user.findFirst({ where: { email, active: true } }),
@@ -22,7 +21,7 @@ export async function loginAction(formData: FormData) {
     ]);
 
     if (throttle?.blockedUntil && throttle.blockedUntil > new Date()) {
-      redirect("/login?error=locked");
+      return redirectTo(request, "/login?error=locked");
     }
 
     if (!user || !(await verifyPassword(password, user.passwordHash))) {
@@ -33,20 +32,16 @@ export async function loginAction(formData: FormData) {
         create: { key: throttleKey, failedCount, blockedUntil },
         update: { failedCount, blockedUntil }
       });
-      redirect("/login?error=invalid");
+      return redirectTo(request, "/login?error=invalid");
     }
 
     await prisma.loginThrottle.deleteMany({ where: { key: throttleKey } });
     await createSession(user.id, user.sessionVersion);
-    redirectTo = user.role === "ADMIN" ? "/admin" : "/dashboard";
+
+    return redirectTo(request, user.role === "ADMIN" ? "/admin" : "/dashboard");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("NEXT_REDIRECT")) throw error;
-    if (message.includes("database system is starting up")) {
-      redirect("/login?error=db-starting");
-    }
-    redirect("/login?error=db");
+    const code = message.includes("database system is starting up") ? "db-starting" : "db";
+    return redirectTo(request, `/login?error=${code}`);
   }
-
-  redirect(redirectTo);
 }
