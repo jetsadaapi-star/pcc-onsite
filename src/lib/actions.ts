@@ -749,6 +749,92 @@ export async function updateProjectStatusAction(formData: FormData) {
   if (redirectTo) redirect(redirectTo);
 }
 
+export async function updateProjectAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const id = getString(formData, "id");
+  if (!id) throw new Error("Missing project id");
+
+  const input = projectSchema.parse({
+    name: getString(formData, "name"),
+    customerName: getString(formData, "customerName"),
+    contactName: getString(formData, "contactName") || undefined,
+    contactPhone: getString(formData, "contactPhone") || undefined,
+    address: getString(formData, "address"),
+    province: getString(formData, "province") || undefined,
+    latitude: getNumber(formData, "latitude"),
+    longitude: getNumber(formData, "longitude"),
+    status: getString(formData, "status") || "NEW",
+    description: getString(formData, "description") || undefined
+  });
+
+  const project = await prisma.project.update({
+    where: { id },
+    data: { ...input, status: input.status as ProjectStatus }
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      actorId: admin.id,
+      entityType: "Project",
+      entityId: id,
+      action: "UPDATE_PROJECT",
+      metadata: { code: project.code, name: project.name }
+    }
+  });
+
+  revalidatePath("/projects");
+  revalidatePath("/admin/projects");
+  revalidatePath(`/projects/${id}`);
+  redirect(`/projects/${id}`);
+}
+
+export async function deleteProjectAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const id = getString(formData, "id");
+  if (!id) throw new Error("Missing project id");
+
+  const project = await prisma.project.findUnique({
+    where: { id },
+    select: {
+      code: true,
+      name: true,
+      _count: {
+        select: {
+          checkIns: true,
+          originTravelLegs: true,
+          destinationTravelLegs: true,
+          originTripSessions: true,
+          destinationTripSessions: true
+        }
+      }
+    }
+  });
+  if (!project) throw new Error("Project not found");
+
+  const dependencyCount = Object.values(project._count).reduce((sum, count) => sum + count, 0);
+  if (dependencyCount > 0) {
+    throw new Error("Cannot delete a project that has check-ins or travel history");
+  }
+
+  await prisma.$transaction([
+    prisma.activityLog.deleteMany({ where: { entityType: "Project", entityId: id } }),
+    prisma.project.delete({ where: { id } }),
+    prisma.activityLog.create({
+      data: {
+        actorId: admin.id,
+        entityType: "Project",
+        entityId: id,
+        action: "DELETE_PROJECT",
+        metadata: { code: project.code, name: project.name }
+      }
+    })
+  ]);
+
+  revalidatePath("/projects");
+  revalidatePath("/admin/projects");
+  redirect("/admin/projects?deleted=1");
+}
+
 export async function createCheckInAction(formData: FormData) {
   const user = await requireUser();
   assertFieldUser(user);
@@ -1734,6 +1820,18 @@ export async function upsertOfficeLocationAction(formData: FormData) {
   redirect("/admin/settings?saved=1");
 }
 
+export async function deleteOfficeLocationAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const id = getString(formData, "id");
+  if (!id) throw new Error("Missing office id");
+
+  const office = await prisma.officeLocation.delete({ where: { id } });
+  await prisma.activityLog.create({
+    data: { actorId: admin.id, entityType: "OfficeLocation", entityId: id, action: "DELETE_OFFICE_LOCATION", metadata: { name: office.name } }
+  });
+  revalidatePath("/admin/settings");
+}
+
 export async function updateSystemBrandingAction(formData: FormData) {
   const admin = await requireAdmin();
   const appName = getString(formData, "appName") || "PCC OnSite";
@@ -1858,6 +1956,61 @@ export async function resolveAnomalyAction(formData: FormData) {
   revalidatePath("/admin/anomalies");
   revalidatePath("/reports");
   revalidatePath("/admin");
+}
+
+export async function deleteAnomalyAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const id = getString(formData, "id");
+  if (!id) throw new Error("Missing anomaly id");
+  const anomaly = await prisma.anomalyRecord.delete({ where: { id } });
+  await prisma.activityLog.create({
+    data: { actorId: admin.id, entityType: "AnomalyRecord", entityId: id, action: "DELETE_ANOMALY", metadata: { type: anomaly.type, title: anomaly.title } }
+  });
+  revalidatePath("/admin/anomalies");
+}
+
+export async function deleteTravelClaimAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const id = getString(formData, "id");
+  if (!id) throw new Error("Missing claim id");
+  const claim = await prisma.travelClaim.delete({ where: { id } });
+  await prisma.activityLog.create({
+    data: { actorId: admin.id, entityType: "TravelClaim", entityId: id, action: "DELETE_TRAVEL_CLAIM", metadata: { userId: claim.userId, totalAmount: String(claim.totalAmount) } }
+  });
+  revalidatePath("/admin/travel");
+  revalidatePath("/reports");
+}
+
+export async function deleteCheckInAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const id = getString(formData, "id");
+  if (!id) throw new Error("Missing check-in id");
+  const checkIn = await prisma.checkIn.findUnique({ where: { id }, select: { id: true, userId: true, projectId: true, tripSessionId: true } });
+  if (!checkIn) throw new Error("Check-in not found");
+
+  await prisma.$transaction(async (tx) => {
+    const legs = await tx.travelLeg.findMany({ where: { OR: [{ fromCheckInId: id }, { toCheckInId: id }] }, select: { id: true } });
+    const legIds = legs.map((leg) => leg.id);
+    if (legIds.length) {
+      await tx.anomalyRecord.deleteMany({ where: { travelLegId: { in: legIds } } });
+      await tx.travelClaim.deleteMany({ where: { travelLegId: { in: legIds } } });
+      await tx.travelLeg.deleteMany({ where: { id: { in: legIds } } });
+    }
+    await tx.notificationLog.deleteMany({ where: { checkInId: id } });
+    await tx.anomalyRecord.deleteMany({ where: { checkInId: id } });
+    await tx.odometerLog.deleteMany({ where: { checkInId: id } });
+    await tx.checkIn.delete({ where: { id } });
+    if (checkIn.tripSessionId) await tx.tripSession.delete({ where: { id: checkIn.tripSessionId } });
+    await tx.activityLog.deleteMany({ where: { entityType: "CheckIn", entityId: id } });
+    await tx.activityLog.create({
+      data: { actorId: admin.id, entityType: "CheckIn", entityId: id, action: "DELETE_CHECK_IN", metadata: { userId: checkIn.userId, projectId: checkIn.projectId } }
+    });
+  });
+
+  revalidatePath("/admin/check-ins");
+  revalidatePath("/admin/travel");
+  revalidatePath("/reports");
+  revalidatePath(`/projects/${checkIn.projectId}`);
 }
 
 export async function createFuelLogAction(formData: FormData) {
@@ -2080,6 +2233,64 @@ export async function toggleUserActiveAction(formData: FormData) {
       metadata: { email: user.email, role: user.role }
     }
   });
+
+  revalidatePath("/admin/users");
+}
+
+export async function deleteUserAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const id = getString(formData, "id");
+  if (!id) throw new Error("Missing user id");
+  if (admin.id === id) throw new Error("Cannot delete your own account");
+
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      email: true,
+      role: true,
+      _count: {
+        select: {
+          createdProjects: true,
+          ownedProjects: true,
+          vehicles: true,
+          tripSessions: true,
+          checkIns: true,
+          travelLegs: true,
+          travelClaims: true,
+          reviewedClaims: true,
+          odometerLogs: true,
+          fuelLogs: true
+        }
+      }
+    }
+  });
+  if (!target) throw new Error("User not found");
+
+  const dependencyCount = Object.values(target._count).reduce((sum, count) => sum + count, 0);
+  if (dependencyCount > 0) {
+    throw new Error("Cannot delete a user that has projects, vehicles, or activity history. Deactivate the account instead.");
+  }
+  if (target.role === "ADMIN") {
+    const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
+    if (adminCount <= 1) throw new Error("Cannot delete the last administrator");
+  }
+
+  await prisma.$transaction([
+    prisma.notificationLog.deleteMany({ where: { userId: id } }),
+    prisma.anomalyRecord.deleteMany({ where: { userId: id } }),
+    prisma.exportDocument.updateMany({ where: { generatedById: id }, data: { generatedById: null } }),
+    prisma.activityLog.deleteMany({ where: { OR: [{ actorId: id }, { entityType: "User", entityId: id }] } }),
+    prisma.user.delete({ where: { id } }),
+    prisma.activityLog.create({
+      data: {
+        actorId: admin.id,
+        entityType: "User",
+        entityId: id,
+        action: "DELETE_USER",
+        metadata: { email: target.email, role: target.role }
+      }
+    })
+  ]);
 
   revalidatePath("/admin/users");
 }

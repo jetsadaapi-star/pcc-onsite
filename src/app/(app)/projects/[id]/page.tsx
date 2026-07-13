@@ -5,20 +5,25 @@ import {
   ClipboardList,
   MapPin,
   Navigation,
+  Pencil,
   Phone,
   Route,
+  Trash2,
   UserRound
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProjectMapPanel } from "@/components/project-map-panel";
-import { updateProjectStatusAction } from "@/lib/actions";
+import { ConfirmActionForm } from "@/components/confirm-action-form";
+import { deleteProjectAction, updateProjectStatusAction } from "@/lib/actions";
+import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDateTime } from "@/lib/format";
 import { checkoutStatusLabels, purposeLabels } from "@/lib/labels";
 import { getProjectStatusTone, projectStatusLabels, projectStatusOptions, type ProjectStatus } from "@/lib/project-status";
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const user = await requireUser();
   const { id } = await params;
   const project = await prisma.project.findUnique({
     where: { id },
@@ -73,6 +78,14 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <strong>{project._count.checkIns}</strong>
           <small>check-ins</small>
         </div>
+        {user.role === "ADMIN" ? (
+          <div className="new-project-actions">
+            <Link className="button secondary" href={`/admin/projects/${project.id}/edit`}><Pencil size={16} /> แก้ไข</Link>
+            <ConfirmActionForm action={deleteProjectAction} fields={{ id: project.id }} message={`ยืนยันลบโครงการ ${project.code} ${project.name} ใช่หรือไม่?`}>
+              <button className="button danger" type="submit" disabled={project._count.checkIns > 0} title={project._count.checkIns > 0 ? "โครงการมีประวัติเช็กอิน ไม่สามารถลบได้" : undefined}><Trash2 size={16} /> ลบ</button>
+            </ConfirmActionForm>
+          </div>
+        ) : null}
       </section>
 
       <section className="project-view-kpis">

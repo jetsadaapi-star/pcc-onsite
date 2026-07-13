@@ -8,12 +8,15 @@ import {
   ImageIcon,
   MapPin,
   Search,
+  Trash2,
   UserRound,
   XCircle
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@/generated/prisma/client";
+import { ConfirmActionForm } from "@/components/confirm-action-form";
+import { deleteCheckInAction } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDateTime, formatNumber } from "@/lib/format";
@@ -364,6 +367,9 @@ export default async function AdminCheckInsPage({
                         {item.latitude.toFixed(5)}, {item.longitude.toFixed(5)}
                       </a>
                       {item.accuracy ? <div className="muted">±{Math.round(item.accuracy)}m</div> : null}
+                      <ConfirmActionForm action={deleteCheckInAction} fields={{ id: item.id }} message={`ยืนยันลบเช็กอินของ ${item.user.name} ใช่หรือไม่? ข้อมูลการเดินทางและเคลมที่เกี่ยวข้องจะถูกลบด้วย`}>
+                        <button className="button danger small" type="submit"><Trash2 size={14} /> ลบ</button>
+                      </ConfirmActionForm>
                     </td>
                   </tr>
                 );
@@ -408,6 +414,9 @@ export default async function AdminCheckInsPage({
                   <MapPin size={14} />
                   เปิดพิกัดในแผนที่
                 </a>
+                <ConfirmActionForm action={deleteCheckInAction} fields={{ id: item.id }} message={`ยืนยันลบเช็กอินของ ${item.user.name} ใช่หรือไม่? ข้อมูลการเดินทางและเคลมที่เกี่ยวข้องจะถูกลบด้วย`}>
+                  <button className="button danger" type="submit"><Trash2 size={15} /> ลบเช็กอิน</button>
+                </ConfirmActionForm>
               </article>
             );
           })}

@@ -11,13 +11,15 @@ import {
   Route,
   Search,
   Settings2,
+  Trash2,
   UserRound
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { TravelRateModal } from "@/components/travel-rate-modal";
+import { ConfirmActionForm } from "@/components/confirm-action-form";
 import type { Prisma } from "@/generated/prisma/client";
-import { reviewTravelClaimAction } from "@/lib/actions";
+import { deleteTravelClaimAction, reviewTravelClaimAction } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDateTime, formatMoney, formatNumber } from "@/lib/format";
@@ -149,6 +151,9 @@ function TravelReviewActions({
           <button className="button secondary" type="submit">บันทึกรายละเอียด</button>
         </form>
       </details> : null}
+      <ConfirmActionForm action={deleteTravelClaimAction} fields={{ id: claim.id }} message="ยืนยันลบรายการเบิกเดินทางนี้ใช่หรือไม่?">
+        <button className="admin-travel-action reject" type="submit"><Trash2 size={14} /> ลบรายการ</button>
+      </ConfirmActionForm>
     </div>
   );
 }

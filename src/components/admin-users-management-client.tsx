@@ -11,12 +11,13 @@ import {
   Phone,
   Plus,
   ShieldCheck,
+  Trash2,
   UserRound,
   X
 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createUserAction, toggleUserActiveAction, updateUserAction } from "@/lib/actions";
+import { createUserAction, deleteUserAction, toggleUserActiveAction, updateUserAction } from "@/lib/actions";
 
 export type AdminUserRow = {
   id: string;
@@ -181,6 +182,31 @@ function ToggleUserForm({ user, currentAdminId }: { user: AdminUserRow; currentA
   );
 }
 
+function DeleteUserForm({ user, currentAdminId }: { user: AdminUserRow; currentAdminId: string }) {
+  const hasHistory = Object.values(user.counts).some((count) => count > 0);
+  const disabled = user.id === currentAdminId || hasHistory;
+
+  return (
+    <form
+      action={deleteUserAction}
+      onSubmit={(event) => {
+        if (!window.confirm(`ยืนยันลบบัญชี ${user.name} (${user.email}) ใช่หรือไม่?`)) event.preventDefault();
+      }}
+    >
+      <input type="hidden" name="id" value={user.id} />
+      <button
+        className="admin-users-action danger"
+        type="submit"
+        disabled={disabled}
+        title={user.id === currentAdminId ? "ไม่สามารถลบบัญชีตัวเอง" : hasHistory ? "บัญชีนี้มีประวัติการใช้งาน กรุณาปิดใช้งานแทน" : "ลบบัญชีถาวร"}
+      >
+        <Trash2 size={14} />
+        ลบ
+      </button>
+    </form>
+  );
+}
+
 export function AdminUsersManagementClient({
   users,
   currentAdminId
@@ -251,6 +277,7 @@ export function AdminUsersManagementClient({
                       แก้ไข
                     </button>
                     <ToggleUserForm user={user} currentAdminId={currentAdminId} />
+                    <DeleteUserForm user={user} currentAdminId={currentAdminId} />
                   </div>
                 </td>
               </tr>
@@ -289,6 +316,7 @@ export function AdminUsersManagementClient({
                 แก้ไข
               </button>
               <ToggleUserForm user={user} currentAdminId={currentAdminId} />
+              <DeleteUserForm user={user} currentAdminId={currentAdminId} />
             </div>
           </article>
         ))}

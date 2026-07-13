@@ -1,8 +1,8 @@
 "use client";
 
-import { Building2, ExternalLink, LocateFixed, MapPinned, Save, ShieldCheck } from "lucide-react";
+import { Building2, ExternalLink, LocateFixed, MapPinned, Save, ShieldCheck, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { upsertOfficeLocationAction } from "@/lib/actions";
+import { deleteOfficeLocationAction, upsertOfficeLocationAction } from "@/lib/actions";
 import { formatDateTime } from "@/lib/format";
 
 type OfficeLocationFormProps = {
@@ -129,6 +129,19 @@ export function OfficeLocationForm({ office }: OfficeLocationFormProps) {
         </div>
 
         <div className="settings-office-actions">
+          {office ? (
+            <button
+              className="button danger"
+              type="submit"
+              formAction={deleteOfficeLocationAction}
+              onClick={(event) => {
+                if (!window.confirm(`ยืนยันลบจุดสำนักงาน ${office.name} ใช่หรือไม่?`)) event.preventDefault();
+              }}
+            >
+              <Trash2 size={17} />
+              ลบจุดสำนักงาน
+            </button>
+          ) : null}
           <button className="button" type="submit">
             <Save size={17} />
             บันทึกพิกัดสำนักงาน

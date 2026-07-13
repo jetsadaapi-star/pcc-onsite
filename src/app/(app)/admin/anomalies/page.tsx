@@ -7,11 +7,13 @@ import {
   MapPin,
   Search,
   ShieldAlert,
+  Trash2,
   UserRound
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@/generated/prisma/client";
-import { resolveAnomalyAction } from "@/lib/actions";
+import { ConfirmActionForm } from "@/components/confirm-action-form";
+import { deleteAnomalyAction, resolveAnomalyAction } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDateTime, formatNumber } from "@/lib/format";
@@ -302,6 +304,9 @@ export default async function AdminAnomaliesPage({
                       ) : (
                         <span className="admin-anomaly-detail">{item.resolvedAt ? formatDateTime(item.resolvedAt) : "-"}</span>
                       )}
+                      <ConfirmActionForm action={deleteAnomalyAction} fields={{ id: item.id }} message={`ยืนยันลบรายการผิดปกติ ${item.title} ใช่หรือไม่?`}>
+                        <button className="button danger small" type="submit"><Trash2 size={14} /> ลบ</button>
+                      </ConfirmActionForm>
                     </td>
                   </tr>
                 );
@@ -345,6 +350,9 @@ export default async function AdminAnomaliesPage({
                   ) : (
                     <span className="status-pill success">{statusLabels[item.status]}</span>
                   )}
+                  <ConfirmActionForm action={deleteAnomalyAction} fields={{ id: item.id }} message={`ยืนยันลบรายการผิดปกติ ${item.title} ใช่หรือไม่?`}>
+                    <button className="button danger" type="submit"><Trash2 size={15} /> ลบ</button>
+                  </ConfirmActionForm>
                 </div>
               </article>
             );
