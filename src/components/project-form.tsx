@@ -3,6 +3,7 @@
 import { ArrowLeft, Building2, ClipboardList, LocateFixed, MapPinned, Phone, Save, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
+import { ProjectLocationMap, type ProjectLocation } from "@/components/project-location-map";
 import { createProjectAction } from "@/lib/actions";
 
 type ProjectFormProps = {
@@ -45,6 +46,14 @@ export function ProjectForm({ backHref = "/projects", redirectTo = "/projects" }
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
     );
+  }
+
+  function updateLocation(location: ProjectLocation) {
+    setGps({
+      latitude: location.latitude,
+      longitude: location.longitude
+    });
+    setGpsError(null);
   }
 
   return (
@@ -106,6 +115,17 @@ export function ProjectForm({ backHref = "/projects", redirectTo = "/projects" }
           </div>
         </button>
         {gpsError ? <div className="new-project-alert">{gpsError}</div> : null}
+
+        <div className="project-location-picker">
+          <div className="project-location-picker-head">
+            <div>
+              <strong><MapPinned size={17} /> ปักหมุดตำแหน่งที่ตั้ง</strong>
+              <span>{gps ? "ลากหมุดเพื่อปรับตำแหน่ง หรือคลิกจุดใหม่บนแผนที่" : "คลิกบนแผนที่เพื่อวางหมุด หรือกดดึงตำแหน่งปัจจุบันด้านบน"}</span>
+            </div>
+            <em className={gps ? "ready" : ""}>{gps ? "เลือกตำแหน่งแล้ว" : "รอปักหมุด"}</em>
+          </div>
+          <ProjectLocationMap location={gps} onLocationChange={updateLocation} />
+        </div>
 
         <div className="form-grid two">
           <div className="field">

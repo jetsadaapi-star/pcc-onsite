@@ -6735,6 +6735,102 @@ a {
   font-weight: 800;
 }
 
+.project-location-picker {
+  overflow: hidden;
+  border: 1px solid #d9e6f3;
+  border-radius: 20px;
+  background: #f8fbfe;
+}
+
+.project-location-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 14px;
+}
+
+.project-location-picker-head strong,
+.project-location-picker-head span {
+  display: flex;
+  align-items: center;
+}
+
+.project-location-picker-head strong {
+  gap: 7px;
+  color: #0f3158;
+}
+
+.project-location-picker-head span {
+  margin-top: 4px;
+  color: var(--management-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.project-location-picker-head em {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #e8eef5;
+  color: #64748b;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.project-location-picker-head em.ready {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.project-location-map-canvas,
+.project-location-map-loading {
+  height: 340px;
+  border-top: 1px solid #d9e6f3;
+}
+
+.project-location-map-loading {
+  display: grid;
+  place-items: center;
+  color: var(--management-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.project-location-map-canvas .leaflet-container {
+  height: 100%;
+  min-height: 340px;
+  cursor: crosshair;
+}
+
+.project-location-marker {
+  border: 0;
+  background: transparent;
+}
+
+.project-location-pin {
+  position: relative;
+  display: block;
+  width: 34px;
+  height: 34px;
+  transform: rotate(-45deg);
+  border: 3px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  background: #095aa4;
+  box-shadow: 0 7px 18px rgba(9, 90, 164, 0.36);
+}
+
+.project-location-pin > span {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+}
+
 .new-project-actions {
   position: sticky;
   bottom: 12px;
@@ -9592,6 +9688,20 @@ a {
     width: 46px;
     height: 46px;
     border-radius: 16px;
+  }
+
+  .project-location-picker-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .project-location-map-canvas,
+  .project-location-map-loading {
+    height: 300px;
+  }
+
+  .project-location-map-canvas .leaflet-container {
+    min-height: 300px;
   }
 
   .new-project-actions {
