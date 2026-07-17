@@ -20,11 +20,18 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDateTime } from "@/lib/format";
 import { checkoutStatusLabels, purposeLabels } from "@/lib/labels";
-import { getProjectStatusTone, projectStatusLabels, projectStatusOptions, type ProjectStatus } from "@/lib/project-status";
+import { getAvailableProjectStatusOptions, getProjectStatusTone, projectStatusLabels, type ProjectStatus } from "@/lib/project-status";
 
-export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProjectDetailPage({
+  params,
+  searchParams
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ statusError?: string }>;
+}) {
   const user = await requireUser();
   const { id } = await params;
+  const query = await searchParams;
   const project = await prisma.project.findUnique({
     where: { id },
     include: {
@@ -47,6 +54,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   if (!project) notFound();
 
   const status = project.status as ProjectStatus;
+  const availableStatusOptions = getAvailableProjectStatusOptions(status, user.role === "ADMIN");
+  const availableNextStatusLabels = availableStatusOptions
+    .filter((option) => option.value !== status)
+    .map((option) => option.label);
   const hasLocation = project.latitude !== null && project.longitude !== null;
   const totalInboundKm = project.destinationTravelLegs.reduce((sum, leg) => sum + leg.distanceKm, 0);
   const lastCheckIn = project.checkIns[0];
@@ -176,15 +187,21 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <section className="status-control-card">
             <div>
               <h2>จัดการสถานะ</h2>
-              <p>อัปเดตสถานะจากหน้ารายละเอียดเพื่อลดการกดผิดในตาราง</p>
+              <p>{user.role === "ADMIN" ? "ผู้ดูแลระบบสามารถแก้ไขเป็นสถานะใดก็ได้" : "เลือกได้เฉพาะสถานะถัดไปตามลำดับการทำงาน"}</p>
             </div>
+            {query.statusError ? (
+              <div className="new-project-alert" role="alert">
+                ไม่สามารถข้ามจาก “{projectStatusLabels[status]}” ไปสถานะที่เลือกได้
+                {availableNextStatusLabels.length ? ` ขั้นตอนถัดไปที่เลือกได้: ${availableNextStatusLabels.join(", ")}` : " สถานะนี้สิ้นสุดกระบวนการแล้ว"}
+              </div>
+            ) : null}
             <form action={updateProjectStatusAction} className="form-grid">
               <input type="hidden" name="id" value={project.id} />
               <input type="hidden" name="redirectTo" value={`/projects/${project.id}`} />
               <div className="field">
                 <label htmlFor="status">สถานะใหม่</label>
                 <select className="select" id="status" name="status" defaultValue={project.status}>
-                  {projectStatusOptions.map((option) => (
+                  {availableStatusOptions.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
                 </select>

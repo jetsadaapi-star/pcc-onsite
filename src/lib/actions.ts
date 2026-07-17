@@ -37,6 +37,12 @@ function getSafeRedirectPath(value: string) {
   }
 }
 
+function withQueryParam(path: string, key: string, value: string) {
+  const url = new URL(path, "http://localhost");
+  url.searchParams.set(key, value);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 function getNumber(formData: FormData, key: string) {
   const value = Number(getString(formData, key));
   return Number.isFinite(value) ? value : undefined;
@@ -749,7 +755,9 @@ export async function updateProjectStatusAction(formData: FormData) {
   const user = await requireUser();
   const id = getString(formData, "id");
   const nextStatus = getString(formData, "status") as ProjectStatus;
+  const redirectTo = getSafeRedirectPath(getString(formData, "redirectTo"));
   if (!["NEW", "CONTACTED", "SURVEY_SCHEDULED", "SURVEYED", "QUOTING", "QUOTED", "NEGOTIATING", "WON", "IN_CONSTRUCTION", "COMPLETED", "ON_HOLD", "CLOSED_LOST", "CANCELLED"].includes(nextStatus)) {
+    if (redirectTo) redirect(withQueryParam(redirectTo, "statusError", "invalid-status"));
     throw new Error("Invalid project status");
   }
 
@@ -759,6 +767,7 @@ export async function updateProjectStatusAction(formData: FormData) {
   const ownsProject = project.createdById === user.id || project.ownerId === user.id;
   if (user.role !== "ADMIN" && !ownsProject) throw new Error("Forbidden");
   if (!canTransitionProjectStatus(project.status as ProjectStatus, nextStatus) && user.role !== "ADMIN") {
+    if (redirectTo) redirect(withQueryParam(redirectTo, "statusError", "invalid-transition"));
     throw new Error("Invalid project status transition");
   }
 
@@ -780,7 +789,6 @@ export async function updateProjectStatusAction(formData: FormData) {
   revalidatePath("/projects");
   revalidatePath("/admin/projects");
 
-  const redirectTo = getSafeRedirectPath(getString(formData, "redirectTo"));
   if (redirectTo) redirect(redirectTo);
 }
 

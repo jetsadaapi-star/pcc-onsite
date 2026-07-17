@@ -41,6 +41,11 @@ export function canTransitionProjectStatus(from: ProjectStatus, to: ProjectStatu
   return from === to || allowedTransitions[from].includes(to);
 }
 
+export function getAvailableProjectStatusOptions(current: ProjectStatus, canOverride = false) {
+  if (canOverride) return projectStatusOptions;
+  return projectStatusOptions.filter((option) => canTransitionProjectStatus(current, option.value));
+}
+
 export function getProjectStatusTone(status: ProjectStatus) {
   if (["WON", "COMPLETED"].includes(status)) return "success";
   if (["ON_HOLD", "CLOSED_LOST", "CANCELLED"].includes(status)) return "muted";
