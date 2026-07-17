@@ -15,12 +15,13 @@ import {
   Sparkles,
   Workflow
 } from "lucide-react";
+import { ActionFeedbackForm } from "@/components/action-feedback-form";
 import { OfficeLocationForm } from "@/components/office-location-form";
 import { SystemBrandingForm } from "@/components/system-branding-form";
-import { runCheckoutRemindersAction, updateOperationalSettingsAction } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { getAppBranding } from "@/lib/branding";
 import { prisma } from "@/lib/db";
+import { runCheckoutRemindersFormAction, updateOperationalSettingsFormAction } from "@/lib/form-actions";
 
 type AdminSettingsSearchParams = {
   saved?: string;
@@ -149,7 +150,7 @@ export default async function AdminSettingsPage({
               </div>
             </div>
 
-            <form action={updateOperationalSettingsAction} className="admin-settings-form">
+            <ActionFeedbackForm action={updateOperationalSettingsFormAction} className="admin-settings-form" successMessage="บันทึกการตั้งค่าการทำงานแล้ว">
               <div className="settings-toggle-grid">
                 <label className="toggle-row">
                   <input name="checkoutReminderEnabled" type="checkbox" defaultChecked={reminderEnabled} />
@@ -192,10 +193,10 @@ export default async function AdminSettingsPage({
                   บันทึกการตั้งค่า
                 </button>
               </div>
-            </form>
+            </ActionFeedbackForm>
           </section>
 
-          <form action={runCheckoutRemindersAction} className="admin-settings-inline-card">
+          <ActionFeedbackForm action={runCheckoutRemindersFormAction} className="admin-settings-inline-card" successMessage="ประมวลผลการแจ้งเตือนแล้ว">
             <div>
               <strong>ทดสอบแจ้งเตือนลืมเช็คเอาท์</strong>
               <span>มี log แจ้งเตือนแล้ว {reminderLogs} รายการ ใช้ `SMTP_*`, `LINE_CHANNEL_ACCESS_TOKEN` และ `CRON_SECRET` เมื่อตั้งใช้งานจริง</span>
@@ -204,7 +205,7 @@ export default async function AdminSettingsPage({
               <Send size={16} />
               ส่งเตือนตอนนี้
             </button>
-          </form>
+          </ActionFeedbackForm>
 
           <div className="settings-section-label">
             <MapPinned size={16} />

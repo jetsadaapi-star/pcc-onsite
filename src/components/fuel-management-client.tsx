@@ -1,9 +1,12 @@
 "use client";
 
 import { CalendarDays, CarFront, Eye, Fuel, Gauge, Plus, ReceiptText, RotateCcw, Search, X } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
+import { ActionFeedbackForm } from "@/components/action-feedback-form";
 import { CameraCaptureField } from "@/components/camera-capture-field";
-import { createFuelLogAction } from "@/lib/actions";
+import { createFuelLogFormAction } from "@/lib/form-actions";
+import { useDialogAccessibility } from "@/lib/use-dialog-accessibility";
 
 type VehicleOption = {
   id: string;
@@ -69,9 +72,10 @@ function withinPreset(value: string, preset: string) {
 }
 
 function FuelCreateModal({ vehicles, onClose }: { vehicles: VehicleOption[]; onClose: () => void }) {
+  const dialogRef = useDialogAccessibility(true, onClose);
   return (
     <div className="modal-backdrop vehicle-modal-backdrop" role="presentation">
-      <section className="vehicle-modal-panel" role="dialog" aria-modal="true" aria-labelledby="fuel-create-title">
+      <section ref={dialogRef} className="vehicle-modal-panel" role="dialog" aria-modal="true" aria-labelledby="fuel-create-title">
         <div className="vehicle-modal-head">
           <span><Fuel size={21} /></span>
           <div>
@@ -84,7 +88,7 @@ function FuelCreateModal({ vehicles, onClose }: { vehicles: VehicleOption[]; onC
         </div>
 
         {vehicles.length > 0 ? (
-          <form action={createFuelLogAction} className="vehicle-modal-form">
+          <ActionFeedbackForm action={createFuelLogFormAction} className="vehicle-modal-form">
             <div className="form-grid two">
               <div className="field">
                 <label htmlFor="fuel-vehicleId"><CarFront size={15} /> รถ</label>
@@ -153,7 +157,7 @@ function FuelCreateModal({ vehicles, onClose }: { vehicles: VehicleOption[]; onC
                 บันทึกเติมน้ำมัน
               </button>
             </div>
-          </form>
+          </ActionFeedbackForm>
         ) : (
           <div className="fuel-modal-empty">
             ยังไม่มีรถที่แอดมินอนุมัติและกำหนด กม./ลิตร ให้เพิ่มรถที่หน้า รถของฉัน ก่อน
@@ -165,9 +169,10 @@ function FuelCreateModal({ vehicles, onClose }: { vehicles: VehicleOption[]; onC
 }
 
 function FuelDetailModal({ log, onClose }: { log: FuelLogRow; onClose: () => void }) {
+  const dialogRef = useDialogAccessibility(true, onClose);
   return (
     <div className="modal-backdrop vehicle-modal-backdrop" role="presentation">
-      <section className="vehicle-modal-panel fuel-detail-modal" role="dialog" aria-modal="true" aria-labelledby="fuel-detail-title">
+      <section ref={dialogRef} className="vehicle-modal-panel fuel-detail-modal" role="dialog" aria-modal="true" aria-labelledby="fuel-detail-title">
         <div className="vehicle-modal-head">
           <span><ReceiptText size={21} /></span>
           <div>
@@ -237,7 +242,15 @@ function FuelDetailModal({ log, onClose }: { log: FuelLogRow; onClose: () => voi
   );
 }
 
-export function FuelManagementClient({ vehicles, fuelLogs }: { vehicles: VehicleOption[]; fuelLogs: FuelLogRow[] }) {
+export function FuelManagementClient({
+  vehicles,
+  fuelLogs,
+  pagination
+}: {
+  vehicles: VehicleOption[];
+  fuelLogs: FuelLogRow[];
+  pagination: { currentPage: number; totalPages: number; totalLogs: number };
+}) {
   const [query, setQuery] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [datePreset, setDatePreset] = useState("30d");
@@ -320,7 +333,7 @@ export function FuelManagementClient({ vehicles, fuelLogs }: { vehicles: Vehicle
               ))}
             </select>
             <select value={datePreset} onChange={(event) => setDatePreset(event.target.value)} aria-label="กรองช่วงเวลา">
-              <option value="">ทั้งหมด</option>
+              <option value="">ทั้งหมดในหน้านี้</option>
               <option value="7d">7 วันล่าสุด</option>
               <option value="30d">30 วันล่าสุด</option>
               <option value="90d">90 วันล่าสุด</option>
@@ -409,6 +422,25 @@ export function FuelManagementClient({ vehicles, fuelLogs }: { vehicles: Vehicle
         </div>
 
         {filteredLogs.length === 0 ? <div className="empty">ไม่พบรายการเติมน้ำมันตามเงื่อนไข</div> : null}
+        <div className="projects-pagination">
+          <Link
+            className={`projects-page-link ${pagination.currentPage <= 1 ? "disabled" : ""}`}
+            href={pagination.currentPage <= 2 ? "/fuel" : `/fuel?page=${pagination.currentPage - 1}`}
+            aria-disabled={pagination.currentPage <= 1}
+          >
+            ก่อนหน้า
+          </Link>
+          <span className="projects-page-size-pill">
+            หน้า {pagination.currentPage}/{pagination.totalPages} · ทั้งหมด {pagination.totalLogs} รายการ
+          </span>
+          <Link
+            className={`projects-page-link ${pagination.currentPage >= pagination.totalPages ? "disabled" : ""}`}
+            href={pagination.currentPage >= pagination.totalPages ? `/fuel?page=${pagination.totalPages}` : `/fuel?page=${pagination.currentPage + 1}`}
+            aria-disabled={pagination.currentPage >= pagination.totalPages}
+          >
+            ถัดไป
+          </Link>
+        </div>
       </section>
 
       {createOpen ? <FuelCreateModal vehicles={vehicles} onClose={() => setCreateOpen(false)} /> : null}

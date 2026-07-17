@@ -2,7 +2,8 @@
 
 import { Camera, ImagePlus, Trash2, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
-import { removeProfilePhotoAction, updateProfilePhotoAction } from "@/lib/actions";
+import { ActionFeedbackForm } from "@/components/action-feedback-form";
+import { removeProfilePhotoFormAction, updateProfilePhotoFormAction } from "@/lib/form-actions";
 
 type ProfilePhotoSettingsProps = {
   user: {
@@ -38,7 +39,7 @@ export function ProfilePhotoSettings({ user }: ProfilePhotoSettingsProps) {
         </div>
       </div>
 
-      <form action={updateProfilePhotoAction} className="profile-photo-form">
+      <ActionFeedbackForm action={updateProfilePhotoFormAction} className="profile-photo-form" successMessage="บันทึกรูปโปรไฟล์แล้ว">
         <label className="profile-upload-target" htmlFor="profile-photo">
           <span><ImagePlus size={22} /></span>
           <div>
@@ -63,15 +64,15 @@ export function ProfilePhotoSettings({ user }: ProfilePhotoSettingsProps) {
             บันทึกรูปโปรไฟล์
           </button>
         </div>
-      </form>
+      </ActionFeedbackForm>
 
       {hasPhoto ? (
-        <form action={removeProfilePhotoAction} className="profile-remove-form">
+        <ActionFeedbackForm action={removeProfilePhotoFormAction} className="profile-remove-form">
           <button className="button secondary danger-soft" type="submit">
             <Trash2 size={16} />
             ลบรูปโปรไฟล์
           </button>
-        </form>
+        </ActionFeedbackForm>
       ) : null}
 
       <div className="profile-photo-note">

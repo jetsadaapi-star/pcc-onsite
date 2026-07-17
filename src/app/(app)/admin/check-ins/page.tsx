@@ -18,6 +18,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { ConfirmActionForm } from "@/components/confirm-action-form";
 import { deleteCheckInAction } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
+import { bangkokDateRange, startOfCurrentBangkokDay } from "@/lib/bangkok-time";
 import { prisma } from "@/lib/db";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { checkoutStatusLabels, purposeLabels, roleLabels } from "@/lib/labels";
@@ -45,12 +46,6 @@ function parsePage(value?: string) {
   return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
 }
 
-function parseDate(value?: string) {
-  if (!value) return undefined;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-}
-
 function buildHref(params: AdminCheckInsSearchParams, patch: Partial<AdminCheckInsSearchParams>) {
   const next = new URLSearchParams();
   const merged = { ...params, ...patch };
@@ -70,18 +65,7 @@ function pageNumbers(currentPage: number, totalPages: number) {
 }
 
 function dateRangeFilter(from?: string, to?: string) {
-  const submittedAt: Prisma.DateTimeFilter = {};
-  const fromDate = parseDate(from);
-  const toDate = parseDate(to);
-
-  if (fromDate) submittedAt.gte = fromDate;
-  if (toDate) {
-    const end = new Date(toDate);
-    end.setHours(23, 59, 59, 999);
-    submittedAt.lte = end;
-  }
-
-  return Object.keys(submittedAt).length ? submittedAt : undefined;
+  return bangkokDateRange(from, to) as Prisma.DateTimeFilter | undefined;
 }
 
 function googleMapsHref(latitude: number, longitude: number) {
@@ -131,8 +115,7 @@ export default async function AdminCheckInsPage({
 
   if (and.length) where.AND = and;
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = startOfCurrentBangkokDay();
 
   const [checkIns, total, filteredOpen, todayTotal, openTotal, users, projects] = await Promise.all([
     prisma.checkIn.findMany({

@@ -16,13 +16,16 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ActionFeedbackForm } from "@/components/action-feedback-form";
 import { TravelRateModal } from "@/components/travel-rate-modal";
 import { ConfirmActionForm } from "@/components/confirm-action-form";
 import type { Prisma } from "@/generated/prisma/client";
-import { deleteTravelClaimAction, reviewTravelClaimAction } from "@/lib/actions";
+import { deleteTravelClaimAction } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
+import { bangkokDateRange } from "@/lib/bangkok-time";
 import { prisma } from "@/lib/db";
 import { formatDateTime, formatMoney, formatNumber } from "@/lib/format";
+import { reviewTravelClaimFormAction } from "@/lib/form-actions";
 import { claimStatusLabels, claimTone, roleLabels } from "@/lib/labels";
 
 type AdminTravelSearchParams = {
@@ -53,25 +56,8 @@ function parsePage(value?: string) {
   return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
 }
 
-function parseDate(value?: string) {
-  if (!value) return undefined;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-}
-
 function dateRangeFilter(from?: string, to?: string) {
-  const submittedAt: Prisma.DateTimeFilter = {};
-  const fromDate = parseDate(from);
-  const toDate = parseDate(to);
-
-  if (fromDate) submittedAt.gte = fromDate;
-  if (toDate) {
-    const end = new Date(toDate);
-    end.setHours(23, 59, 59, 999);
-    submittedAt.lte = end;
-  }
-
-  return Object.keys(submittedAt).length ? submittedAt : undefined;
+  return bangkokDateRange(from, to) as Prisma.DateTimeFilter | undefined;
 }
 
 function buildHref(params: AdminTravelSearchParams, patch: Partial<AdminTravelSearchParams>) {
@@ -104,33 +90,33 @@ function TravelReviewActions({
       <div className="admin-travel-quick-actions">
         {claim.status === "PENDING_REVIEW" ? (
           <>
-            <form action={reviewTravelClaimAction}>
+            <ActionFeedbackForm action={reviewTravelClaimFormAction}>
               <input type="hidden" name="id" value={claim.id} />
               <input type="hidden" name="status" value="APPROVED" />
               <button className="admin-travel-action approve" type="submit">
                 <CheckCircle2 size={14} />
                 อนุมัติ
               </button>
-            </form>
-            <form action={reviewTravelClaimAction}>
+            </ActionFeedbackForm>
+            <ActionFeedbackForm action={reviewTravelClaimFormAction}>
               <input type="hidden" name="id" value={claim.id} />
               <input type="hidden" name="status" value="REJECTED" />
               <button className="admin-travel-action reject" type="submit">
                 <AlertTriangle size={14} />
                 ปฏิเสธ
               </button>
-            </form>
+            </ActionFeedbackForm>
           </>
         ) : null}
         {claim.status === "APPROVED" ? (
-          <form action={reviewTravelClaimAction}>
+          <ActionFeedbackForm action={reviewTravelClaimFormAction}>
             <input type="hidden" name="id" value={claim.id} />
             <input type="hidden" name="status" value="PAID" />
             <button className="admin-travel-action paid" type="submit">
               <CircleDollarSign size={14} />
               จ่ายแล้ว
             </button>
-          </form>
+          </ActionFeedbackForm>
         ) : null}
       </div>
 
@@ -139,7 +125,7 @@ function TravelReviewActions({
           <Settings2 size={14} />
           ปรับยอด/หมายเหตุ
         </summary>
-        <form action={reviewTravelClaimAction} className="admin-travel-adjust-form">
+        <ActionFeedbackForm action={reviewTravelClaimFormAction} className="admin-travel-adjust-form">
           <input type="hidden" name="id" value={claim.id} />
           <select className="select" name="status" defaultValue={claim.status === "PENDING_REVIEW" ? "APPROVED" : claim.status}>
             <option value="APPROVED">อนุมัติ</option>
@@ -149,7 +135,7 @@ function TravelReviewActions({
           <input className="input" name="overrideReason" placeholder="เหตุผลเมื่อปรับยอด" />
           <input className="input" name="adminNote" placeholder="หมายเหตุแอดมิน" defaultValue={claim.adminNote ?? ""} />
           <button className="button secondary" type="submit">บันทึกรายละเอียด</button>
-        </form>
+        </ActionFeedbackForm>
       </details> : null}
       {claim.status !== "APPROVED" && claim.status !== "PAID" ? (
         <ConfirmActionForm action={deleteTravelClaimAction} fields={{ id: claim.id }} message="ยืนยันลบรายการเบิกเดินทางนี้ใช่หรือไม่?">

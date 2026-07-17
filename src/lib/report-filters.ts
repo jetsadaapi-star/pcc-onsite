@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { bangkokDateRange, bangkokMonthRange } from "@/lib/bangkok-time";
 
 export type ReportFilterInput = {
   q?: string | null;
@@ -19,49 +20,18 @@ export const reportStatusOptions = [
 ] as const;
 
 const statusValues = new Set<string>(reportStatusOptions.map((status) => status.value));
-const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function clean(value?: string | null) {
   const text = value?.trim();
   return text || undefined;
 }
 
-function startOfBangkokDay(value?: string) {
-  const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return undefined;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const calendarDate = new Date(Date.UTC(year, month - 1, day));
-  if (
-    calendarDate.getUTCFullYear() !== year ||
-    calendarDate.getUTCMonth() !== month - 1 ||
-    calendarDate.getUTCDate() !== day
-  ) return undefined;
-  return new Date(calendarDate.getTime() - BANGKOK_OFFSET_MS);
-}
-
 export function buildBangkokReportDateFilter(input: ReportFilterInput): Prisma.DateTimeFilter | undefined {
   const filters = normalizeReportFilters(input);
 
-  if (filters.month) {
-    const [year, month] = filters.month.split("-").map(Number);
-    if (month < 1 || month > 12) return undefined;
-    return {
-      gte: new Date(Date.UTC(year, month - 1, 1) - BANGKOK_OFFSET_MS),
-      lt: new Date(Date.UTC(year, month, 1) - BANGKOK_OFFSET_MS)
-    };
-  }
-
-  const fromDate = startOfBangkokDay(filters.from);
-  const toDate = startOfBangkokDay(filters.to);
-  if (!fromDate && !toDate) return undefined;
-
-  return {
-    ...(fromDate ? { gte: fromDate } : {}),
-    ...(toDate ? { lt: new Date(toDate.getTime() + DAY_MS) } : {})
-  };
+  return filters.month
+    ? bangkokMonthRange(filters.month)
+    : bangkokDateRange(filters.from, filters.to);
 }
 
 export function normalizeReportFilters(input: ReportFilterInput) {

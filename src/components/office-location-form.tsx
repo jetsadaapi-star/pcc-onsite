@@ -2,7 +2,9 @@
 
 import { Building2, ExternalLink, LocateFixed, MapPinned, Save, ShieldCheck, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { deleteOfficeLocationAction, upsertOfficeLocationAction } from "@/lib/actions";
+import { ActionFeedbackForm } from "@/components/action-feedback-form";
+import { deleteOfficeLocationAction } from "@/lib/actions";
+import { upsertOfficeLocationFormAction } from "@/lib/form-actions";
 import { formatDateTime } from "@/lib/format";
 
 type OfficeLocationFormProps = {
@@ -57,7 +59,7 @@ export function OfficeLocationForm({ office }: OfficeLocationFormProps) {
   }
 
   return (
-    <form action={upsertOfficeLocationAction} className="admin-settings-form">
+    <ActionFeedbackForm action={upsertOfficeLocationFormAction} className="admin-settings-form" successMessage="บันทึกพิกัดสำนักงานแล้ว">
       <input type="hidden" name="id" value={office?.id ?? ""} />
       <input type="hidden" name="isDefault" value="true" />
       <input type="hidden" name="active" value="true" />
@@ -148,6 +150,6 @@ export function OfficeLocationForm({ office }: OfficeLocationFormProps) {
           </button>
         </div>
       </section>
-    </form>
+    </ActionFeedbackForm>
   );
 }

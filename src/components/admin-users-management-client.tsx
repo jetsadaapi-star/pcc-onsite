@@ -17,8 +17,9 @@ import {
 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { deleteUserAction, toggleUserActiveAction } from "@/lib/actions";
-import { saveAdminUserFormAction } from "@/lib/form-actions";
+import { ActionFeedbackForm } from "@/components/action-feedback-form";
+import { deleteUserFormAction, saveAdminUserFormAction, toggleUserActiveFormAction } from "@/lib/form-actions";
+import { useDialogAccessibility } from "@/lib/use-dialog-accessibility";
 
 export type AdminUserRow = {
   id: string;
@@ -72,6 +73,7 @@ function UserFormModal({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
+  const dialogRef = useDialogAccessibility(true, onClose);
 
   function submit(formData: FormData) {
     setActionError(null);
@@ -88,7 +90,7 @@ function UserFormModal({
 
   return (
     <div className="modal-backdrop vehicle-modal-backdrop" role="presentation">
-      <section className="vehicle-modal-panel admin-user-modal" role="dialog" aria-modal="true" aria-labelledby="admin-user-modal-title">
+      <section ref={dialogRef} className="vehicle-modal-panel admin-user-modal" role="dialog" aria-modal="true" aria-labelledby="admin-user-modal-title">
         <div className="vehicle-modal-head">
           <span><UserRound size={21} /></span>
           <div>
@@ -173,7 +175,7 @@ function ToggleUserForm({ user, currentAdminId }: { user: AdminUserRow; currentA
   const isSelf = user.id === currentAdminId;
 
   return (
-    <form action={toggleUserActiveAction}>
+    <ActionFeedbackForm action={toggleUserActiveFormAction}>
       <input type="hidden" name="id" value={user.id} />
       <input type="hidden" name="active" value={user.active ? "false" : "true"} />
       <button
@@ -185,7 +187,7 @@ function ToggleUserForm({ user, currentAdminId }: { user: AdminUserRow; currentA
         {user.active ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />}
         {user.active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
       </button>
-    </form>
+    </ActionFeedbackForm>
   );
 }
 
@@ -194,8 +196,8 @@ function DeleteUserForm({ user, currentAdminId }: { user: AdminUserRow; currentA
   const disabled = user.id === currentAdminId || hasHistory;
 
   return (
-    <form
-      action={deleteUserAction}
+    <ActionFeedbackForm
+      action={deleteUserFormAction}
       onSubmit={(event) => {
         if (!window.confirm(`ยืนยันลบบัญชี ${user.name} (${user.email}) ใช่หรือไม่?`)) event.preventDefault();
       }}
@@ -210,7 +212,7 @@ function DeleteUserForm({ user, currentAdminId }: { user: AdminUserRow; currentA
         <Trash2 size={14} />
         ลบ
       </button>
-    </form>
+    </ActionFeedbackForm>
   );
 }
 

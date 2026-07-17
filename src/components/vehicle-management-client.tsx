@@ -10,6 +10,7 @@ import {
 import { saveVehicleEfficiencyPresetFormAction, updateVehicleFormAction } from "@/lib/form-actions";
 import { formatNumber } from "@/lib/format";
 import { roleLabels } from "@/lib/labels";
+import { useDialogAccessibility } from "@/lib/use-dialog-accessibility";
 
 type UserOption = {
   id: string;
@@ -92,6 +93,7 @@ function VehicleFormModal({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
+  const dialogRef = useDialogAccessibility(true, onClose);
 
   function submit(formData: FormData) {
     setActionError(null);
@@ -108,7 +110,7 @@ function VehicleFormModal({
 
   return (
     <div className="modal-backdrop vehicle-modal-backdrop" role="presentation">
-      <section className="vehicle-modal-panel" role="dialog" aria-modal="true" aria-labelledby="vehicle-modal-title">
+      <section ref={dialogRef} className="vehicle-modal-panel" role="dialog" aria-modal="true" aria-labelledby="vehicle-modal-title">
         <div className="vehicle-modal-head">
           <span><CarFront size={21} /></span>
           <div>
@@ -195,6 +197,7 @@ function PresetFormModal({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
+  const dialogRef = useDialogAccessibility(true, onClose);
 
   function submit(formData: FormData) {
     setActionError(null);
@@ -211,7 +214,7 @@ function PresetFormModal({
 
   return (
     <div className="modal-backdrop vehicle-modal-backdrop" role="presentation">
-      <section className="vehicle-modal-panel compact" role="dialog" aria-modal="true" aria-labelledby="preset-modal-title">
+      <section ref={dialogRef} className="vehicle-modal-panel compact" role="dialog" aria-modal="true" aria-labelledby="preset-modal-title">
         <div className="vehicle-modal-head">
           <span><Gauge size={21} /></span>
           <div>

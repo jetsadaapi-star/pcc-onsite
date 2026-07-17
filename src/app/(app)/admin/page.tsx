@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { AdminLiveMap, type AdminMapPoint } from "@/components/admin-live-map";
 import { requireAdmin } from "@/lib/auth";
+import { startOfCurrentBangkokDay } from "@/lib/bangkok-time";
 import { prisma } from "@/lib/db";
 import { formatDateTime, formatMoney, formatNumber } from "@/lib/format";
 import { claimStatusLabels, claimTone, purposeLabels, roleLabels } from "@/lib/labels";
@@ -19,16 +20,11 @@ import { getProjectStatusTone, projectStatusLabels, type ProjectStatus } from "@
 
 export default async function AdminPage() {
   await requireAdmin();
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = startOfCurrentBangkokDay();
 
   const [
-    users,
+    adminMetricsRows,
     projectStatusCounts,
-    missingLocation,
-    todayCheckIns,
-    pendingClaims,
-    distance,
     recentCheckIns,
     latestClaims,
     latestProjects,
@@ -36,16 +32,23 @@ export default async function AdminPage() {
     mapProjects,
     mapTrips
   ] = await Promise.all([
-    prisma.user.count({ where: { active: true } }),
+    prisma.$queryRaw<Array<{
+      users: number;
+      missingLocation: number;
+      todayCheckIns: number;
+      pendingClaimCount: number;
+      pendingAmount: number;
+      distanceKm: number;
+    }>>`
+      SELECT
+        (SELECT COUNT(*)::int FROM "User" WHERE "active" = true) AS "users",
+        (SELECT COUNT(*)::int FROM "Project" WHERE "latitude" IS NULL OR "longitude" IS NULL) AS "missingLocation",
+        (SELECT COUNT(*)::int FROM "CheckIn" WHERE "checkedAt" >= ${todayStart}) AS "todayCheckIns",
+        (SELECT COUNT(*)::int FROM "TravelClaim" WHERE "status" = 'PENDING_REVIEW') AS "pendingClaimCount",
+        (SELECT COALESCE(SUM("totalAmount"), 0)::double precision FROM "TravelClaim" WHERE "status" = 'PENDING_REVIEW') AS "pendingAmount",
+        (SELECT COALESCE(SUM("distanceKm"), 0)::double precision FROM "TravelLeg") AS "distanceKm"
+    `,
     prisma.project.groupBy({ by: ["status"], _count: true }),
-    prisma.project.count({ where: { OR: [{ latitude: null }, { longitude: null }] } }),
-    prisma.checkIn.count({ where: { checkedAt: { gte: todayStart } } }),
-    prisma.travelClaim.aggregate({
-      where: { status: "PENDING_REVIEW" },
-      _sum: { totalAmount: true },
-      _count: true
-    }),
-    prisma.travelLeg.aggregate({ _sum: { distanceKm: true } }),
     prisma.checkIn.findMany({
       orderBy: { checkedAt: "desc" },
       take: 7,
@@ -118,6 +121,16 @@ export default async function AdminPage() {
     })
   ]);
 
+  const adminMetrics = adminMetricsRows[0] ?? {
+    users: 0,
+    missingLocation: 0,
+    todayCheckIns: 0,
+    pendingClaimCount: 0,
+    pendingAmount: 0,
+    distanceKm: 0
+  };
+  const { users, missingLocation, todayCheckIns } = adminMetrics;
+
   const projectCount = (statuses: string[]) => projectStatusCounts
     .filter((item) => statuses.includes(item.status))
     .reduce((sum, item) => sum + item._count, 0);
@@ -125,7 +138,7 @@ export default async function AdminPage() {
   const activeProjects = projectCount(["NEW", "CONTACTED", "SURVEY_SCHEDULED", "SURVEYED", "QUOTING", "QUOTED", "NEGOTIATING", "WON", "IN_CONSTRUCTION", "ON_HOLD"]);
   const quotedProjects = projectCount(["QUOTING", "QUOTED", "NEGOTIATING"]);
   const constructionProjects = projectCount(["IN_CONSTRUCTION"]);
-  const pendingAmount = pendingClaims._sum.totalAmount ?? 0;
+  const pendingAmount = adminMetrics.pendingAmount;
   const projectMix = [
     { label: "Active", value: activeProjects, tone: "blue" },
     { label: "กำลังขาย/ทำราคา", value: quotedProjects, tone: "amber" },
@@ -184,7 +197,7 @@ export default async function AdminPage() {
           <span><ReceiptText size={19} /></span>
           <small>ยอดรอตรวจ</small>
           <strong>{formatMoney(pendingAmount)}</strong>
-          <em>{pendingClaims._count} รายการ</em>
+          <em>{adminMetrics.pendingClaimCount} รายการ</em>
         </Link>
         <Link className="admin-metric-card" href="/admin/check-ins">
           <span><ClipboardCheck size={19} /></span>
@@ -239,7 +252,7 @@ export default async function AdminPage() {
                 <span><AlertCircle size={18} /></span>
                 <div>
                   <strong>ค่าเดินทางรอตรวจ</strong>
-                  <small>{pendingClaims._count} รายการ · {formatMoney(pendingAmount)}</small>
+                  <small>{adminMetrics.pendingClaimCount} รายการ · {formatMoney(pendingAmount)}</small>
                 </div>
               </Link>
               <Link className="admin-action-item" href="/projects?location=missing">
@@ -340,7 +353,7 @@ export default async function AdminPage() {
               </div>
               <Route size={22} color="#095aa4" />
             </div>
-            <strong className="admin-big-number">{formatNumber(distance._sum.distanceKm ?? 0, 1)} กม.</strong>
+            <strong className="admin-big-number">{formatNumber(adminMetrics.distanceKm, 1)} กม.</strong>
           </section>
 
           <section className="admin-panel">

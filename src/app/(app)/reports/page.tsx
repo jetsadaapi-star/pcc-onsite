@@ -1,9 +1,9 @@
 import { CalendarDays, Download, Filter, Gauge, ReceiptText, RotateCcw, Search, UsersRound } from "lucide-react";
 import Link from "next/link";
-import type { Prisma } from "@/generated/prisma/client";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDateTime, formatMoney, formatNumber } from "@/lib/format";
+import { getFuelPerformanceRows } from "@/lib/fuel-performance";
 import { claimStatusLabels, claimTone } from "@/lib/labels";
 import { buildBangkokReportDateFilter, buildReportQuery, buildTravelClaimWhere, normalizeReportFilters, reportStatusOptions, type ReportFilterInput } from "@/lib/report-filters";
 
@@ -15,14 +15,9 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const where = buildTravelClaimWhere(filters, user);
   const query = buildReportQuery(filters);
 
-  const fuelWhere: Prisma.FuelLogWhereInput = {
-    ...(user.role === "ADMIN" ? {} : { userId: user.id }),
-    ...(filters.vehicleId ? { vehicleId: filters.vehicleId } : {})
-  };
-  const fueledAt = buildBangkokReportDateFilter(filters);
-  if (fueledAt) fuelWhere.fueledAt = fueledAt;
+  const fueledAt = buildBangkokReportDateFilter(filters) as { gte?: Date; lt?: Date } | undefined;
 
-  const [claims, summary, users, vehicles, fuelLogs, openAnomalies] = await Promise.all([
+  const [claims, summary, users, vehicles, fuelPerformanceRows, openAnomalies] = await Promise.all([
     prisma.travelClaim.findMany({
       where,
       orderBy: { submittedAt: "desc" },
@@ -64,14 +59,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
       select: { id: true, name: true, licensePlate: true, user: { select: { name: true } } }
     }),
-    prisma.fuelLog.findMany({
-      where: fuelWhere,
-      orderBy: [{ vehicleId: "asc" }, { odometerKm: "asc" }],
-      take: 1000,
-      include: {
-        vehicle: { select: { id: true, name: true, licensePlate: true, kmPerLiter: true } },
-        user: { select: { name: true } }
-      }
+    getFuelPerformanceRows({
+      userId: user.role === "ADMIN" ? undefined : user.id,
+      vehicleId: filters.vehicleId,
+      from: fueledAt?.gte,
+      to: fueledAt?.lt
     }),
     prisma.anomalyRecord.count({ where: { status: "OPEN", ...(user.role === "ADMIN" ? {} : { userId: user.id }) } })
   ]);
@@ -91,22 +83,9 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     ? "วิเคราะห์ค่าเดินทางของทุกทีม เลือกผู้ใช้ รถ สถานะ ช่วงเวลา และส่งออกข้อมูลตามตัวกรองเป็น CSV ได้ทันที"
     : "เลือกช่วงเวลา รถ สถานะ หรือคำค้นหา แล้วส่งออกข้อมูลค่าเดินทางของคุณตามตัวกรองเป็น CSV ได้ทันที";
 
-  const fuelByVehicle = new Map<string, typeof fuelLogs>();
-  for (const log of fuelLogs) {
-    fuelByVehicle.set(log.vehicleId, [...(fuelByVehicle.get(log.vehicleId) ?? []), log]);
-  }
-  const vehiclePerformance = Array.from(fuelByVehicle.values()).map((logs) => {
-    let distanceKm = 0;
-    let liters = 0;
-    for (let index = 1; index < logs.length; index += 1) {
-      const diff = logs[index].odometerKm - logs[index - 1].odometerKm;
-      if (diff > 0) {
-        distanceKm += diff;
-        liters += Number(logs[index].liters);
-      }
-    }
-    const actualKmPerLiter = liters > 0 ? distanceKm / liters : null;
-    const expected = logs[0].vehicle.kmPerLiter;
+  const vehiclePerformance = fuelPerformanceRows.map((row) => {
+    const actualKmPerLiter = row.liters > 0 ? row.distanceKm / row.liters : null;
+    const expected = row.expectedKmPerLiter;
     const status = actualKmPerLiter && expected
       ? actualKmPerLiter < expected * 0.55
         ? "ผิดปกติ"
@@ -115,16 +94,16 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           : "ปกติ"
       : "ข้อมูลไม่พอ";
     return {
-      vehicle: logs[0].vehicle,
-      owner: logs[0].user.name,
-      fillCount: logs.length,
-      totalAmount: logs.reduce((sum, log) => sum + Number(log.totalAmount), 0),
-      distanceKm,
-      liters,
+      vehicle: { id: row.vehicleId, name: row.vehicleName, licensePlate: row.licensePlate, kmPerLiter: expected },
+      owner: row.owner,
+      fillCount: row.fillCount,
+      totalAmount: row.totalAmount,
+      distanceKm: row.distanceKm,
+      liters: row.liters,
       actualKmPerLiter,
       status
     };
-  }).sort((a, b) => b.totalAmount - a.totalAmount);
+  });
 
   return (
     <div className="content-stack reports-page">

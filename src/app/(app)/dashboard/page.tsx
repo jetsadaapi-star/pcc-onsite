@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
+import { getBangkokHour, startOfCurrentBangkokDay } from "@/lib/bangkok-time";
 import { prisma } from "@/lib/db";
 import { formatDateTime, formatMoney, formatNumber } from "@/lib/format";
 import { claimStatusLabels, claimTone, purposeLabels } from "@/lib/labels";
@@ -36,7 +37,7 @@ function durationText(start: Date) {
 }
 
 function greeting(name: string) {
-  const hour = new Date().getHours();
+  const hour = getBangkokHour();
   const prefix = hour < 12 ? "สวัสดีตอนเช้า" : hour < 17 ? "สวัสดีตอนบ่าย" : "สวัสดีตอนเย็น";
   return `${prefix} ${name}`;
 }
@@ -45,29 +46,30 @@ export default async function DashboardPage() {
   const user = await requireUser();
   if (user.role === "ADMIN") redirect("/admin");
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = startOfCurrentBangkokDay();
 
   const [
-    todayCheckIns,
-    totalDistance,
+    dashboardMetricsRows,
     latestCheckIn,
     activeTrip,
     latestClaims,
     recentProjects,
     todayTrips,
     todayFuelLogs,
-    todayCheckInRows,
-    pendingClaims,
-    activeProjectCount
+    todayCheckInRows
   ] = await Promise.all([
-    prisma.checkIn.count({
-      where: { userId: user.id, checkedAt: { gte: todayStart } }
-    }),
-    prisma.travelLeg.aggregate({
-      where: { userId: user.id },
-      _sum: { distanceKm: true }
-    }),
+    prisma.$queryRaw<Array<{
+      todayCheckIns: number;
+      totalDistanceKm: number;
+      pendingClaims: number;
+      activeProjectCount: number;
+    }>>`
+      SELECT
+        (SELECT COUNT(*)::int FROM "CheckIn" WHERE "userId" = ${user.id} AND "checkedAt" >= ${todayStart}) AS "todayCheckIns",
+        (SELECT COALESCE(SUM("distanceKm"), 0)::double precision FROM "TravelLeg" WHERE "userId" = ${user.id}) AS "totalDistanceKm",
+        (SELECT COUNT(*)::int FROM "TravelClaim" WHERE "userId" = ${user.id} AND "status" = 'PENDING_REVIEW') AS "pendingClaims",
+        (SELECT COUNT(*)::int FROM "Project" WHERE ("ownerId" = ${user.id} OR "createdById" = ${user.id}) AND "status" NOT IN ('COMPLETED', 'CLOSED_LOST', 'CANCELLED')) AS "activeProjectCount"
+    `,
     prisma.checkIn.findFirst({
       where: { userId: user.id },
       orderBy: { checkedAt: "desc" },
@@ -157,17 +159,16 @@ export default async function DashboardPage() {
         checkedOutAt: true,
         project: { select: { name: true } }
       }
-    }),
-    prisma.travelClaim.count({
-      where: { userId: user.id, status: "PENDING_REVIEW" }
-    }),
-    prisma.project.count({
-      where: {
-        OR: [{ ownerId: user.id }, { createdById: user.id }],
-        status: { notIn: ["COMPLETED", "CLOSED_LOST", "CANCELLED"] }
-      }
     })
   ]);
+
+  const dashboardMetrics = dashboardMetricsRows[0] ?? {
+    todayCheckIns: 0,
+    totalDistanceKm: 0,
+    pendingClaims: 0,
+    activeProjectCount: 0
+  };
+  const { todayCheckIns, totalDistanceKm, pendingClaims, activeProjectCount } = dashboardMetrics;
 
   const activeVisit = latestCheckIn && !latestCheckIn.checkedOutAt ? latestCheckIn : null;
   const activeTripDestinationLabel = activeTrip?.destinationType === "OFFICE"
@@ -176,7 +177,6 @@ export default async function DashboardPage() {
   // The warning intentionally reflects request time in this server-rendered page.
   // eslint-disable-next-line react-hooks/purity
   const checkoutWarning = activeVisit ? Date.now() - activeVisit.checkedAt.getTime() > 6 * 60 * 60 * 1000 : false;
-  const totalDistanceKm = totalDistance._sum.distanceKm ?? 0;
   const claimTotal = latestClaims.reduce((sum, claim) => sum + Number(claim.totalAmount), 0);
   const mainActionLabel = activeVisit ? "เช็คเอาท์หน้างาน" : activeTrip ? "เช็คอินปลายทาง" : "เริ่มเดินทาง";
   const mainActionHelp = activeVisit

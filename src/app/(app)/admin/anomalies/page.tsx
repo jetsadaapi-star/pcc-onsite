@@ -12,11 +12,13 @@ import {
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@/generated/prisma/client";
+import { ActionFeedbackForm } from "@/components/action-feedback-form";
 import { ConfirmActionForm } from "@/components/confirm-action-form";
-import { deleteAnomalyAction, resolveAnomalyAction } from "@/lib/actions";
+import { deleteAnomalyAction } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDateTime, formatNumber } from "@/lib/format";
+import { resolveAnomalyFormAction } from "@/lib/form-actions";
 
 type AdminAnomaliesSearchParams = {
   q?: string;
@@ -297,10 +299,10 @@ export default async function AdminAnomaliesPage({
                     <td>{formatDateTime(item.createdAt)}</td>
                     <td>
                       {item.status === "OPEN" ? (
-                        <form action={resolveAnomalyAction}>
+                        <ActionFeedbackForm action={resolveAnomalyFormAction}>
                           <input type="hidden" name="id" value={item.id} />
                           <button className="button secondary small" type="submit"><CheckCircle2 size={14} /> ปิดเคส</button>
-                        </form>
+                        </ActionFeedbackForm>
                       ) : (
                         <span className="admin-anomaly-detail">{item.resolvedAt ? formatDateTime(item.resolvedAt) : "-"}</span>
                       )}
@@ -343,10 +345,10 @@ export default async function AdminAnomaliesPage({
                 <div className="admin-anomaly-mobile-actions">
                   {mapHref ? <a className="button secondary" href={mapHref} target="_blank" rel="noreferrer"><MapPin size={15} /> เปิดพิกัด</a> : null}
                   {item.status === "OPEN" ? (
-                    <form action={resolveAnomalyAction}>
+                    <ActionFeedbackForm action={resolveAnomalyFormAction}>
                       <input type="hidden" name="id" value={item.id} />
                       <button className="button primary" type="submit"><CheckCircle2 size={15} /> ปิดเคส</button>
-                    </form>
+                    </ActionFeedbackForm>
                   ) : (
                     <span className="status-pill success">{statusLabels[item.status]}</span>
                   )}

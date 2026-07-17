@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { ActionModal } from "@/components/action-modal";
 import { CameraCaptureField } from "@/components/camera-capture-field";
 import { createCheckInFormAction } from "@/lib/form-actions";
+import { useProjectSearch } from "@/lib/use-project-search";
 
 type ProjectOption = {
   id: string;
@@ -82,13 +83,7 @@ export function CheckInForm({
   const hasProjects = projects.length > 0;
   const hasVehicles = vehicles.length > 0;
   const selectedProject = activeTrip?.destinationProject ?? projects.find((project) => project.id === selectedProjectId);
-  const filteredProjects = useMemo(() => {
-    const keyword = projectQuery.trim().toLowerCase();
-    if (!keyword) return projects.slice(0, 10);
-    return projects
-      .filter((project) => `${project.code} ${project.name} ${project.customerName}`.toLowerCase().includes(keyword))
-      .slice(0, 10);
-  }, [projectQuery, projects]);
+  const { projects: filteredProjects, searching: projectSearching, error: projectSearchError } = useProjectSearch(projects, projectQuery);
   const gpsText = useMemo(() => {
     if (gpsLoading) return "กำลังดึงพิกัดอัตโนมัติ...";
     if (!gps) return "ยังไม่ได้ดึงพิกัด";
@@ -323,7 +318,9 @@ export function CheckInForm({
                   })}
                 </div>
 
-                {filteredProjects.length === 0 ? (
+                {projectSearching ? <div className="empty compact">กำลังค้นหาโครงการ...</div> : null}
+                {projectSearchError ? <div className="empty compact" role="status">{projectSearchError}</div> : null}
+                {!projectSearching && !projectSearchError && filteredProjects.length === 0 ? (
                   <div className="empty compact">ไม่พบโครงการที่ตรงกับคำค้นหา</div>
                 ) : null}
 

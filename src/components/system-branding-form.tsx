@@ -2,7 +2,8 @@
 
 import { ImagePlus, Save, Settings2, Upload } from "lucide-react";
 import { useState } from "react";
-import { updateSystemBrandingAction } from "@/lib/actions";
+import { ActionFeedbackForm } from "@/components/action-feedback-form";
+import { updateSystemBrandingFormAction } from "@/lib/form-actions";
 
 type SystemBrandingFormProps = {
   branding: {
@@ -19,7 +20,7 @@ export function SystemBrandingForm({ branding }: SystemBrandingFormProps) {
   const faviconSrc = faviconPreview ?? branding.faviconUrl;
 
   return (
-    <form action={updateSystemBrandingAction} className="system-branding-form">
+    <ActionFeedbackForm action={updateSystemBrandingFormAction} className="system-branding-form" successMessage="บันทึกแบรนด์ระบบแล้ว">
       <input type="hidden" name="currentLogoUrl" value={branding.logoUrl ?? ""} />
       <input type="hidden" name="currentFaviconUrl" value={branding.faviconUrl ?? ""} />
 
@@ -88,6 +89,6 @@ export function SystemBrandingForm({ branding }: SystemBrandingFormProps) {
           </button>
         </div>
       </section>
-    </form>
+    </ActionFeedbackForm>
   );
 }

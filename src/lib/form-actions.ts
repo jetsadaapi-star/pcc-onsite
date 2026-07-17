@@ -1,18 +1,30 @@
 "use server";
 
 import {
+  changeOwnPasswordAction,
   checkoutAction,
   completeOfficeTripAction,
   createCheckInAction,
+  createFuelLogAction,
   createProjectAction,
   createUserAction,
   createVehicleEfficiencyPresetAction,
+  deleteUserAction,
+  removeProfilePhotoAction,
+  resolveAnomalyAction,
+  reviewTravelClaimAction,
+  runCheckoutRemindersAction,
   startTripAction,
+  toggleUserActiveAction,
   updateUserAction,
   updateVehicleAction,
   updateVehicleEfficiencyPresetAction,
+  updateOperationalSettingsAction,
+  updateProfilePhotoAction,
   updateProjectAction,
-  updateProjectStatusAction
+  updateProjectStatusAction,
+  updateSystemBrandingAction,
+  upsertOfficeLocationAction
 } from "@/lib/actions";
 import { redirect } from "next/navigation";
 
@@ -28,6 +40,8 @@ function isNextControlFlowError(error: unknown) {
 
 function userMessage(error: unknown) {
   if (error instanceof Error) {
+    if (error.message.includes("Total upload size")) return "รูปทั้งหมดมีขนาดเกิน 7 MB กรุณาลดจำนวนรูปแล้วลองใหม่";
+    if (error.message.includes("Maximum file size is 5 MB")) return "รูปมีขนาดเกิน 5 MB กรุณาเลือกรูปที่เล็กลง";
     if (/[฀-๿]/.test(error.message)) return error.message;
     if (error.name === "ZodError") return "ข้อมูลไม่ครบหรือรูปแบบไม่ถูกต้อง กรุณาตรวจสอบช่องที่จำเป็น";
   }
@@ -95,4 +109,52 @@ export async function saveVehicleEfficiencyPresetFormAction(formData: FormData) 
     formData.get("id") ? updateVehicleEfficiencyPresetAction : createVehicleEfficiencyPresetAction,
     formData
   );
+}
+
+export async function createFuelLogFormAction(formData: FormData) {
+  return execute(createFuelLogAction, formData);
+}
+
+export async function changeOwnPasswordFormAction(formData: FormData) {
+  return execute(changeOwnPasswordAction, formData);
+}
+
+export async function upsertOfficeLocationFormAction(formData: FormData) {
+  return execute(upsertOfficeLocationAction, formData);
+}
+
+export async function updateSystemBrandingFormAction(formData: FormData) {
+  return execute(updateSystemBrandingAction, formData);
+}
+
+export async function updateOperationalSettingsFormAction(formData: FormData) {
+  return execute(updateOperationalSettingsAction, formData);
+}
+
+export async function updateProfilePhotoFormAction(formData: FormData) {
+  return execute(updateProfilePhotoAction, formData);
+}
+
+export async function removeProfilePhotoFormAction(formData: FormData) {
+  return execute(() => removeProfilePhotoAction(), formData);
+}
+
+export async function runCheckoutRemindersFormAction(formData: FormData) {
+  return execute(() => runCheckoutRemindersAction(), formData);
+}
+
+export async function reviewTravelClaimFormAction(formData: FormData) {
+  return execute(reviewTravelClaimAction, formData);
+}
+
+export async function resolveAnomalyFormAction(formData: FormData) {
+  return execute(resolveAnomalyAction, formData);
+}
+
+export async function toggleUserActiveFormAction(formData: FormData) {
+  return execute(toggleUserActiveAction, formData);
+}
+
+export async function deleteUserFormAction(formData: FormData) {
+  return execute(deleteUserAction, formData);
 }

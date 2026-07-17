@@ -15,6 +15,7 @@ type CameraCaptureFieldProps = {
   title: string;
   description: string;
   multiple?: boolean;
+  maxFiles?: number;
   tone?: "default" | "danger" | "receipt";
   ocrTargets?: Array<{ targetId: string; label: string }>;
 };
@@ -25,9 +26,11 @@ export function CameraCaptureField({
   title,
   description,
   multiple = false,
+  maxFiles: configuredMaxFiles,
   tone = "default",
   ocrTargets = []
 }: CameraCaptureFieldProps) {
+  const maxFiles = configuredMaxFiles ?? (multiple ? 4 : 1);
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -35,6 +38,7 @@ export function CameraCaptureField({
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [processingFiles, setProcessingFiles] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [ocrNumbers, setOcrNumbers] = useState<string[]>([]);
@@ -91,18 +95,47 @@ export function CameraCaptureField({
     };
   }, []);
 
+  async function optimizeImage(file: File) {
+    if (typeof createImageBitmap !== "function") return file;
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) {
+      bitmap.close();
+      return file;
+    }
+
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.78));
+    if (!blob) return file;
+    return new File([blob], `${file.name.replace(/\.[^.]+$/, "") || name}.jpg`, {
+      type: "image/jpeg",
+      lastModified: file.lastModified
+    });
+  }
+
   async function capturePhoto() {
     const video = videoRef.current;
     if (!video || !video.videoWidth || !video.videoHeight) return;
+    if (photosRef.current.length >= maxFiles) {
+      setCameraError(`แนบรูปได้สูงสุด ${maxFiles} รูป`);
+      stopCamera();
+      return;
+    }
 
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const scale = Math.min(1, 1600 / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
     const context = canvas.getContext("2d");
     if (!context) return;
 
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.86));
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.78));
     if (!blob) return;
 
     const file = new File([blob], `${name}-${Date.now()}.jpg`, { type: "image/jpeg" });
@@ -113,7 +146,7 @@ export function CameraCaptureField({
     };
 
     setPhotos((current) => {
-      const next = multiple ? [...current, item] : [item];
+      const next = multiple ? [...current, item].slice(0, maxFiles) : [item];
       if (!multiple) current.forEach((photo) => URL.revokeObjectURL(photo.url));
       syncFiles(next);
       return next;
@@ -132,22 +165,34 @@ export function CameraCaptureField({
     });
   }
 
-  function pickFallbackFiles(files: FileList | null) {
+  async function pickFallbackFiles(files: FileList | null) {
     if (!files?.length) return;
-    const nextPhotos = Array.from(files)
-      .filter((file) => file.type.startsWith("image/"))
-      .map((file) => ({
+    setCameraError(null);
+    setProcessingFiles(true);
+    const selectedFiles = Array.from(files)
+      .filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type))
+      .slice(0, maxFiles);
+
+    try {
+      const optimizedFiles = await Promise.all(selectedFiles.map((file) => optimizeImage(file)));
+      const nextPhotos = optimizedFiles.map((file) => ({
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file,
         url: URL.createObjectURL(file)
       }));
 
-    setPhotos((current) => {
-      current.forEach((photo) => URL.revokeObjectURL(photo.url));
-      const next = multiple ? nextPhotos : nextPhotos.slice(0, 1);
-      syncFiles(next);
-      return next;
-    });
+      setPhotos((current) => {
+        current.forEach((photo) => URL.revokeObjectURL(photo.url));
+        const next = multiple ? nextPhotos : nextPhotos.slice(0, 1);
+        syncFiles(next);
+        return next;
+      });
+      if (files.length > maxFiles) setCameraError(`เลือกได้สูงสุด ${maxFiles} รูป ระบบใช้ ${maxFiles} รูปแรก`);
+    } catch {
+      setCameraError("ไม่สามารถย่อขนาดรูปได้ กรุณาเลือกรูป JPG, PNG หรือ WEBP ใหม่");
+    } finally {
+      setProcessingFiles(false);
+    }
   }
 
   async function runOcr() {
@@ -189,19 +234,22 @@ export function CameraCaptureField({
   return (
     <div className="camera-field">
       <span className="field-label"><Camera size={15} /> {label}</span>
+      <small className="muted">
+        {processingFiles ? "กำลังย่อขนาดรูป..." : `แนบแล้ว ${photos.length}/${maxFiles} รูป · ไม่เกิน 1,600px`}
+      </small>
       <input
         ref={inputRef}
         className="camera-capture-input"
         name={name}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp"
         capture="environment"
         multiple={multiple}
-        onChange={(event) => pickFallbackFiles(event.target.files)}
+        onChange={(event) => void pickFallbackFiles(event.target.files)}
       />
 
       {!cameraOpen ? (
-        <button className={`camera-capture-button ${tone === "default" ? "" : tone}`} type="button" onClick={openCamera}>
+        <button className={`camera-capture-button ${tone === "default" ? "" : tone}`} type="button" onClick={openCamera} disabled={processingFiles || photos.length >= maxFiles}>
           <span><Camera size={19} /></span>
           <strong>{title}</strong>
           <small>{description}</small>

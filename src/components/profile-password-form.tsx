@@ -1,5 +1,6 @@
 import { KeyRound, ShieldCheck } from "lucide-react";
-import { changeOwnPasswordAction } from "@/lib/actions";
+import { ActionFeedbackForm } from "@/components/action-feedback-form";
+import { changeOwnPasswordFormAction } from "@/lib/form-actions";
 
 export function ProfilePasswordForm() {
   return (
@@ -11,7 +12,7 @@ export function ProfilePasswordForm() {
           <p>การบันทึกจะออกจากระบบทุกอุปกรณ์ที่เคยเข้าสู่ระบบไว้</p>
         </div>
       </div>
-      <form action={changeOwnPasswordAction} className="form-grid">
+      <ActionFeedbackForm action={changeOwnPasswordFormAction} className="form-grid">
         <div className="field">
           <label htmlFor="profile-current-password">รหัสผ่านปัจจุบัน</label>
           <input className="input" id="profile-current-password" name="currentPassword" type="password" autoComplete="current-password" required />
@@ -25,7 +26,7 @@ export function ProfilePasswordForm() {
           <input className="input" id="profile-confirm-password" name="confirmPassword" type="password" minLength={8} autoComplete="new-password" required />
         </div>
         <button className="button" type="submit"><ShieldCheck size={16} /> เปลี่ยนรหัสผ่าน</button>
-      </form>
+      </ActionFeedbackForm>
     </section>
   );
 }

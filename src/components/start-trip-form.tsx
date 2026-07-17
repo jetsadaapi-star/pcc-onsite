@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { ActionModal } from "@/components/action-modal";
 import { CameraCaptureField } from "@/components/camera-capture-field";
 import { startTripFormAction } from "@/lib/form-actions";
+import { useProjectSearch } from "@/lib/use-project-search";
 
 type ProjectOption = {
   id: string;
@@ -79,13 +80,7 @@ export function StartTripForm({
   const effectiveOrigin = originType === "OFFICE" && defaultOffice
     ? { latitude: defaultOffice.latitude, longitude: defaultOffice.longitude, accuracy: undefined }
     : gps;
-  const filteredProjects = useMemo(() => {
-    const keyword = projectQuery.trim().toLowerCase();
-    if (!keyword) return projects.slice(0, 10);
-    return projects
-      .filter((project) => `${project.code} ${project.name} ${project.customerName}`.toLowerCase().includes(keyword))
-      .slice(0, 10);
-  }, [projectQuery, projects]);
+  const { projects: filteredProjects, searching: projectSearching, error: projectSearchError } = useProjectSearch(projects, projectQuery);
   const gpsText = useMemo(() => {
     if (originType === "OFFICE" && defaultOffice) return `${defaultOffice.name} (${defaultOffice.latitude.toFixed(6)}, ${defaultOffice.longitude.toFixed(6)})`;
     if (originType === "PREVIOUS_SITE") return "ระบบจะใช้พิกัดเช็คเอาท์ล่าสุดเป็นต้นทาง";
@@ -351,7 +346,9 @@ export function StartTripForm({
                     );
                   })}
                 </div>
-                {filteredProjects.length === 0 ? <div className="empty compact">ไม่พบโครงการที่ตรงกับคำค้นหา</div> : null}
+                {projectSearching ? <div className="empty compact">กำลังค้นหาโครงการ...</div> : null}
+                {projectSearchError ? <div className="empty compact" role="status">{projectSearchError}</div> : null}
+                {!projectSearching && !projectSearchError && filteredProjects.length === 0 ? <div className="empty compact">ไม่พบโครงการที่ตรงกับคำค้นหา</div> : null}
                 <Link className="project-add-link" href="/projects/new?returnTo=/check-in" onClick={() => setPickerOpen(false)}>
                   <Plus size={17} />
                   เพิ่มหน้างานใหม่

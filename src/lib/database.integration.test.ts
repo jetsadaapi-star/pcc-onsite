@@ -1,11 +1,25 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { getFuelPerformanceRows } from "@/lib/fuel-performance";
+
+vi.mock("server-only", () => ({}));
 
 const runDatabaseTests = process.env.RUN_DB_TESTS === "true";
 
 describe.skipIf(!runDatabaseTests)("production database invariants", () => {
+  it("executes the fuel performance aggregate against the current schema", async () => {
+    const rows = await getFuelPerformanceRows({});
+    expect(Array.isArray(rows)).toBe(true);
+    for (const row of rows) {
+      expect(row.fillCount).toBeGreaterThan(0);
+      expect(Number.isFinite(row.totalAmount)).toBe(true);
+      expect(Number.isFinite(row.distanceKm)).toBe(true);
+      expect(Number.isFinite(row.liters)).toBe(true);
+    }
+  });
+
   it("enforces one open visit, one active trip, and supports office travel legs", async () => {
     const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
     await client.connect();

@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
+import { useDialogAccessibility } from "@/lib/use-dialog-accessibility";
 
 type ActionModalProps = {
   open: boolean;
@@ -30,12 +31,13 @@ export function ActionModal({
   onConfirm,
   onClose
 }: ActionModalProps) {
+  const dialogRef = useDialogAccessibility(open, onClose);
   if (!open) return null;
   const Icon = icons[tone];
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <section className="action-modal" role="dialog" aria-modal="true" aria-labelledby="action-modal-title">
+      <section ref={dialogRef} className="action-modal" role="dialog" aria-modal="true" aria-labelledby="action-modal-title" aria-describedby="action-modal-description">
         <button className="modal-close" type="button" onClick={onClose} aria-label="ปิด">
           <X size={18} />
         </button>
@@ -43,7 +45,7 @@ export function ActionModal({
           <Icon size={22} />
         </div>
         <h2 id="action-modal-title">{title}</h2>
-        <p>{description}</p>
+        <p id="action-modal-description">{description}</p>
         <div className="modal-actions">
           {cancelLabel ? (
             <button className="button secondary" type="button" onClick={onClose}>

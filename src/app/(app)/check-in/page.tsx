@@ -28,7 +28,7 @@ export default async function CheckInPage() {
     prisma.project.findMany({
       where: { status: { notIn: ["COMPLETED", "CLOSED_LOST", "CANCELLED"] } },
       orderBy: { updatedAt: "desc" },
-      take: 100,
+      take: 20,
       select: { id: true, code: true, name: true, customerName: true, latitude: true, longitude: true }
     }),
     prisma.vehicle.findMany({
