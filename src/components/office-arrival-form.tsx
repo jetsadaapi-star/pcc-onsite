@@ -4,7 +4,7 @@ import { Building2, Gauge, LocateFixed, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ActionModal } from "@/components/action-modal";
 import { CameraCaptureField } from "@/components/camera-capture-field";
-import { completeOfficeTripAction } from "@/lib/actions";
+import { completeOfficeTripFormAction } from "@/lib/form-actions";
 
 type OfficeArrivalFormProps = {
   trip: {
@@ -26,6 +26,7 @@ export function OfficeArrivalForm({ trip }: OfficeArrivalFormProps) {
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [modal, setModal] = useState<{ title: string; description: string } | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const gpsText = useMemo(() => {
@@ -79,12 +80,15 @@ export function OfficeArrivalForm({ trip }: OfficeArrivalFormProps) {
     <form
       ref={formRef}
       action={(formData) => {
+        setActionError(null);
         startTransition(async () => {
-          await completeOfficeTripAction(formData);
+          const result = await completeOfficeTripFormAction(formData);
+          if (!result.ok) setActionError(result.error);
         });
       }}
       className="start-trip-panel"
     >
+      {actionError ? <div className="error-banner" role="alert">{actionError}</div> : null}
       <input type="hidden" name="tripSessionId" value={trip.id} />
       <input type="hidden" name="latitude" value={gps?.latitude ?? ""} />
       <input type="hidden" name="longitude" value={gps?.longitude ?? ""} />

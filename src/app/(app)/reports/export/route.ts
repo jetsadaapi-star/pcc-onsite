@@ -1,10 +1,10 @@
-import path from "node:path";
 import { NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { claimStatusLabels } from "@/lib/labels";
 import { buildTravelClaimWhere, normalizeReportFilters } from "@/lib/report-filters";
+import { createTravelReportPdf } from "@/lib/travel-report-pdf";
 
 export const runtime = "nodejs";
 
@@ -36,58 +36,6 @@ function documentNo() {
     day: "2-digit"
   }).format(new Date()).replaceAll("-", "");
   return `TRV-${stamp}-${Date.now().toString().slice(-6)}`;
-}
-
-async function pdfBuffer(input: {
-  documentNo: string;
-  header: string[];
-  rows: unknown[][];
-  totalAmount: number;
-}) {
-  const { default: PDFDocument } = await import("pdfkit");
-  const doc = new PDFDocument({ size: "A4", margin: 36, bufferPages: true });
-  const chunks: Buffer[] = [];
-  doc.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-
-  const fontPath = path.join(process.cwd(), "node_modules", "@fontsource", "noto-sans-thai", "files", "noto-sans-thai-thai-400-normal.woff");
-  try {
-    doc.font(fontPath);
-  } catch {
-    doc.font("Helvetica");
-  }
-
-  doc.fontSize(18).text("PCC OnSite - Accounting Travel Summary");
-  doc.moveDown(0.25);
-  doc.fontSize(10).text(`Document No: ${input.documentNo}`);
-  doc.text(`Generated: ${thaiDate(new Date())}`);
-  doc.text(`Rows: ${input.rows.length}`);
-  doc.text(`Total: ${formatMoney(input.totalAmount)}`);
-  doc.moveDown();
-
-  const columns = [0, 1, 3, 4, 7, 20, 21];
-  const widths = [74, 82, 96, 96, 58, 72, 64];
-  doc.fontSize(8);
-
-  for (const index of columns) {
-    doc.text(input.header[index], { continued: index !== columns.at(-1), width: widths[columns.indexOf(index)] });
-  }
-  doc.moveDown(0.5);
-
-  for (const row of input.rows) {
-    if (doc.y > 760) doc.addPage();
-    columns.forEach((columnIndex, index) => {
-      const value = String(row[columnIndex] ?? "");
-      doc.text(value.slice(0, 42), {
-        continued: index !== columns.length - 1,
-        width: widths[index]
-      });
-    });
-    doc.moveDown(0.35);
-  }
-
-  doc.end();
-  await new Promise<void>((resolve) => doc.on("end", resolve));
-  return Buffer.concat(chunks);
 }
 
 export async function GET(request: NextRequest) {
@@ -190,7 +138,7 @@ export async function GET(request: NextRequest) {
   const docNo = documentNo();
   const extension = safeFormat === "excel" ? "xlsx" : safeFormat;
   const fileName = `accounting-travel-report-${docNo}.${extension}`;
-  await prisma.exportDocument.create({
+  const recordSuccessfulExport = () => prisma.exportDocument.create({
     data: {
       documentNo: docNo,
       type: "ACCOUNTING_TRAVEL",
@@ -221,6 +169,7 @@ export async function GET(request: NextRequest) {
     sheet.columns.forEach((column) => { column.width = 18; });
     sheet.autoFilter = { from: { row: 5, column: 1 }, to: { row: 5, column: header.length } };
     const buffer = await workbook.xlsx.writeBuffer();
+    await recordSuccessfulExport();
     return new Response(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -230,7 +179,14 @@ export async function GET(request: NextRequest) {
   }
 
   if (safeFormat === "pdf") {
-    const buffer = await pdfBuffer({ documentNo: docNo, header, rows, totalAmount });
+    const buffer = await createTravelReportPdf({
+      documentNo: docNo,
+      generatedAt: thaiDate(new Date()),
+      header,
+      rows,
+      totalAmount
+    });
+    await recordSuccessfulExport();
     return new Response(buffer, {
       headers: {
         "Content-Type": "application/pdf",
@@ -246,6 +202,7 @@ export async function GET(request: NextRequest) {
     ...rows
   ].map((row) => row.map(csvCell).join(",")).join("\r\n");
 
+  await recordSuccessfulExport();
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

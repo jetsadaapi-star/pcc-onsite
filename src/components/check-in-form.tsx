@@ -18,7 +18,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ActionModal } from "@/components/action-modal";
 import { CameraCaptureField } from "@/components/camera-capture-field";
-import { createCheckInAction } from "@/lib/actions";
+import { createCheckInFormAction } from "@/lib/form-actions";
 
 type ProjectOption = {
   id: string;
@@ -77,6 +77,7 @@ export function CheckInForm({
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [modal, setModal] = useState<{ title: string; description: string } | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const hasProjects = projects.length > 0;
   const hasVehicles = vehicles.length > 0;
@@ -161,12 +162,15 @@ export function CheckInForm({
     <form
       ref={formRef}
       action={(formData) => {
+        setActionError(null);
         startTransition(async () => {
-          await createCheckInAction(formData);
+          const result = await createCheckInFormAction(formData);
+          if (!result.ok) setActionError(result.error);
         });
       }}
       className="checkin-panel"
     >
+      {actionError ? <div className="error-banner" role="alert">{actionError}</div> : null}
       <div className={gps ? "gps-box ready" : "gps-box"}>
         <div className="toolbar">
           <div>
@@ -241,7 +245,7 @@ export function CheckInForm({
       </section>
 
       <div className="field project-picker">
-        <label><Search size={15} /> โครงการ/หน้างาน</label>
+        <label className="required-label"><Search size={15} /> โครงการ/หน้างาน</label>
         {activeTrip ? (
           <div className="active-visit-card">
             <span><MapPinned size={20} /></span>

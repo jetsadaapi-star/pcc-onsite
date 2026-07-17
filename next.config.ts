@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    "/reports/export": [
+      "./node_modules/@fontsource/noto-sans-thai/files/*.woff",
+      "./node_modules/pdfkit/js/data/*.afm"
+    ]
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "8mb"

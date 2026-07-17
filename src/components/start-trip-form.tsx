@@ -20,7 +20,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ActionModal } from "@/components/action-modal";
 import { CameraCaptureField } from "@/components/camera-capture-field";
-import { startTripAction } from "@/lib/actions";
+import { startTripFormAction } from "@/lib/form-actions";
 
 type ProjectOption = {
   id: string;
@@ -72,6 +72,7 @@ export function StartTripForm({
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [modal, setModal] = useState<{ title: string; description: string } | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId);
@@ -166,12 +167,15 @@ export function StartTripForm({
     <form
       ref={formRef}
       action={(formData) => {
+        setActionError(null);
         startTransition(async () => {
-          await startTripAction(formData);
+          const result = await startTripFormAction(formData);
+          if (!result.ok) setActionError(result.error);
         });
       }}
       className="start-trip-panel"
     >
+      {actionError ? <div className="error-banner" role="alert">{actionError}</div> : null}
       <input type="hidden" name="originType" value={originType} />
       <input type="hidden" name="originLatitude" value={effectiveOrigin?.latitude ?? ""} />
       <input type="hidden" name="originLongitude" value={effectiveOrigin?.longitude ?? ""} />

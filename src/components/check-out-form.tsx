@@ -4,7 +4,7 @@ import { CarFront, ClipboardCheck, FileText, Gauge, LocateFixed, LogOut, MapPin,
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ActionModal } from "@/components/action-modal";
 import { CameraCaptureField } from "@/components/camera-capture-field";
-import { checkoutAction } from "@/lib/actions";
+import { checkoutFormAction } from "@/lib/form-actions";
 
 type ActiveVisit = {
   id: string;
@@ -38,6 +38,7 @@ export function CheckOutForm({ activeVisit }: { activeVisit: ActiveVisit }) {
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ title: string; description: string } | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const gpsText = useMemo(() => {
     if (gpsLoading) return "กำลังดึงพิกัดตอนออกอัตโนมัติ...";
@@ -97,12 +98,15 @@ export function CheckOutForm({ activeVisit }: { activeVisit: ActiveVisit }) {
     <form
       ref={formRef}
       action={(formData) => {
+        setActionError(null);
         startTransition(async () => {
-          await checkoutAction(formData);
+          const result = await checkoutFormAction(formData);
+          if (!result.ok) setActionError(result.error);
         });
       }}
       className="checkin-panel"
     >
+      {actionError ? <div className="error-banner" role="alert">{actionError}</div> : null}
       <input type="hidden" name="checkInId" value={activeVisit.id} />
       <input type="hidden" name="latitude" value={gps?.latitude ?? ""} />
       <input type="hidden" name="longitude" value={gps?.longitude ?? ""} />

@@ -1,8 +1,8 @@
 "use client";
 
 import { Save } from "lucide-react";
-import { useTransition } from "react";
-import { updateProjectAction } from "@/lib/actions";
+import { useState, useTransition } from "react";
+import { updateProjectFormAction } from "@/lib/form-actions";
 import { projectStatusOptions } from "@/lib/project-status";
 
 type ProjectValue = {
@@ -21,13 +21,21 @@ type ProjectValue = {
 
 export function AdminProjectEditForm({ project }: { project: ProjectValue }) {
   const [isPending, startTransition] = useTransition();
+  const [actionError, setActionError] = useState<string | null>(null);
 
   return (
     <form
       className="new-project-form"
-      action={(formData) => startTransition(async () => updateProjectAction(formData))}
+      action={(formData) => {
+        setActionError(null);
+        startTransition(async () => {
+          const result = await updateProjectFormAction(formData);
+          if (!result.ok) setActionError(result.error);
+        });
+      }}
     >
       <input type="hidden" name="id" value={project.id} />
+      {actionError ? <div className="error-banner" role="alert">{actionError}</div> : null}
       <section className="new-project-form-card">
         <div className="new-project-step-head">
           <span>1</span>

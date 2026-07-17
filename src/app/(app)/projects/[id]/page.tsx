@@ -15,7 +15,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProjectMapPanel } from "@/components/project-map-panel";
 import { ConfirmActionForm } from "@/components/confirm-action-form";
-import { deleteProjectAction, updateProjectStatusAction } from "@/lib/actions";
+import { deleteProjectAction } from "@/lib/actions";
+import { updateProjectStatusFormAction } from "@/lib/form-actions";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDateTime } from "@/lib/format";
@@ -191,11 +192,16 @@ export default async function ProjectDetailPage({
             </div>
             {query.statusError ? (
               <div className="new-project-alert" role="alert">
-                ไม่สามารถข้ามจาก “{projectStatusLabels[status]}” ไปสถานะที่เลือกได้
-                {availableNextStatusLabels.length ? ` ขั้นตอนถัดไปที่เลือกได้: ${availableNextStatusLabels.join(", ")}` : " สถานะนี้สิ้นสุดกระบวนการแล้ว"}
+                {query.statusError === "save-failed" ? (
+                  "ไม่สามารถบันทึกสถานะได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง"
+                ) : (
+                  <>ไม่สามารถข้ามจาก “{projectStatusLabels[status]}” ไปสถานะที่เลือกได้
+                    {availableNextStatusLabels.length ? ` ขั้นตอนถัดไปที่เลือกได้: ${availableNextStatusLabels.join(", ")}` : " สถานะนี้สิ้นสุดกระบวนการแล้ว"}
+                  </>
+                )}
               </div>
             ) : null}
-            <form action={updateProjectStatusAction} className="form-grid">
+            <form action={updateProjectStatusFormAction} className="form-grid">
               <input type="hidden" name="id" value={project.id} />
               <input type="hidden" name="redirectTo" value={`/projects/${project.id}`} />
               <div className="field">

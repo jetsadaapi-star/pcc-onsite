@@ -5,11 +5,9 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { VehicleDeleteForm } from "@/components/vehicle-delete-form";
 import {
-  createVehicleEfficiencyPresetAction,
   deleteVehicleEfficiencyPresetAction,
-  updateVehicleAction,
-  updateVehicleEfficiencyPresetAction
 } from "@/lib/actions";
+import { saveVehicleEfficiencyPresetFormAction, updateVehicleFormAction } from "@/lib/form-actions";
 import { formatNumber } from "@/lib/format";
 import { roleLabels } from "@/lib/labels";
 
@@ -93,10 +91,16 @@ function VehicleFormModal({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [actionError, setActionError] = useState<string | null>(null);
 
   function submit(formData: FormData) {
+    setActionError(null);
     startTransition(async () => {
-      await updateVehicleAction(formData);
+      const result = await updateVehicleFormAction(formData);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
       onClose();
       router.refresh();
     });
@@ -118,6 +122,7 @@ function VehicleFormModal({
 
         <form action={submit} className="vehicle-modal-form" key={vehicle.id}>
           <input type="hidden" name="id" value={vehicle.id} />
+          {actionError ? <div className="error-banner" role="alert">{actionError}</div> : null}
 
           <div className="form-grid two">
             <div className="field">
@@ -189,11 +194,16 @@ function PresetFormModal({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const action = preset ? updateVehicleEfficiencyPresetAction : createVehicleEfficiencyPresetAction;
+  const [actionError, setActionError] = useState<string | null>(null);
 
   function submit(formData: FormData) {
+    setActionError(null);
     startTransition(async () => {
-      await action(formData);
+      const result = await saveVehicleEfficiencyPresetFormAction(formData);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
       onClose();
       router.refresh();
     });
@@ -215,6 +225,7 @@ function PresetFormModal({
 
         <form action={submit} className="vehicle-modal-form" key={preset?.id ?? "new-preset"}>
           {preset ? <input type="hidden" name="id" value={preset.id} /> : null}
+          {actionError ? <div className="error-banner" role="alert">{actionError}</div> : null}
           <div className="form-grid two">
             <div className="field">
               <label htmlFor="preset-make">ยี่ห้อ</label>

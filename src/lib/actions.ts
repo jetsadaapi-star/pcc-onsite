@@ -68,6 +68,16 @@ function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+async function settleAnomalyTasks(tasks: Promise<void>[], context: string) {
+  const results = await Promise.allSettled(tasks);
+
+  results.forEach((result, index) => {
+    if (result.status === "rejected") {
+      console.error(`Anomaly detection failed after ${context} (task ${index + 1})`, result.reason);
+    }
+  });
+}
+
 function detectImageExtension(bytes: Buffer) {
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "jpg";
   if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "png";
@@ -490,28 +500,26 @@ export async function cancelTripAction(formData: FormData) {
     reason: getString(formData, "reason")
   });
 
-  const trip = await prisma.tripSession.findFirst({
-    where: { id: input.tripSessionId, userId: user.id, status: "ACTIVE" }
-  });
-  if (!trip) throw new Error("ไม่พบทริปที่กำลังเดินทางอยู่");
+  await prisma.$transaction(async (tx) => {
+    const cancelled = await tx.tripSession.updateMany({
+      where: { id: input.tripSessionId, userId: user.id, status: "ACTIVE" },
+      data: {
+        status: "CANCELLED",
+        cancelReason: input.reason,
+        cancelledAt: new Date()
+      }
+    });
+    if (cancelled.count !== 1) throw new Error("ไม่พบทริปที่กำลังเดินทางอยู่");
 
-  await prisma.tripSession.update({
-    where: { id: trip.id },
-    data: {
-      status: "CANCELLED",
-      cancelReason: input.reason,
-      cancelledAt: new Date()
-    }
-  });
-
-  await prisma.activityLog.create({
-    data: {
-      actorId: user.id,
-      entityType: "TripSession",
-      entityId: trip.id,
-      action: "CANCEL_TRIP",
-      metadata: { reason: input.reason }
-    }
+    await tx.activityLog.create({
+      data: {
+        actorId: user.id,
+        entityType: "TripSession",
+        entityId: input.tripSessionId,
+        action: "CANCEL_TRIP",
+        metadata: { reason: input.reason }
+      }
+    });
   });
 
   revalidatePath("/check-in");
@@ -670,23 +678,25 @@ export async function completeOfficeTripAction(formData: FormData) {
     return createdLeg;
   });
 
-  await detectOdometerReversed({
-    sourceKey: `office-trip:${trip.id}`,
-    userId: user.id,
-    vehicleId: trip.vehicle?.id,
-    previousKm: trip.odometerStartKm,
-    currentKm: input.odometerEndKm,
-    label: "Office trip odometer"
-  });
-  await detectDistanceVarianceAnomaly({
-    sourceKey: `travel-leg:${leg.id}`,
-    userId: user.id,
-    vehicleId: trip.vehicle?.id,
-    travelLegId: leg.id,
-    variancePercent: distanceVariancePercent,
-    gpsDistanceKm: route.distanceKm,
-    odometerDistanceKm
-  });
+  await settleAnomalyTasks([
+    detectOdometerReversed({
+      sourceKey: `office-trip:${trip.id}`,
+      userId: user.id,
+      vehicleId: trip.vehicle?.id,
+      previousKm: trip.odometerStartKm,
+      currentKm: input.odometerEndKm,
+      label: "Office trip odometer"
+    }),
+    detectDistanceVarianceAnomaly({
+      sourceKey: `travel-leg:${leg.id}`,
+      userId: user.id,
+      vehicleId: trip.vehicle?.id,
+      travelLegId: leg.id,
+      variancePercent: distanceVariancePercent,
+      gpsDistanceKm: route.distanceKm,
+      odometerDistanceKm
+    })
+  ], `office trip ${trip.id}`);
 
   revalidatePath("/check-in");
   revalidatePath("/dashboard");
@@ -917,6 +927,16 @@ export async function createCheckInAction(formData: FormData) {
   if (tripSessionId && !activeTrip) throw new Error("ไม่พบทริปที่กำลังเดินทางอยู่");
 
   const resolvedProjectId = activeTrip?.destinationProjectId ?? projectId;
+  const activeProject = await prisma.project.findFirst({
+    where: {
+      id: resolvedProjectId,
+      status: { notIn: ["COMPLETED", "CLOSED_LOST", "CANCELLED"] }
+    },
+    select: { id: true }
+  });
+  if (!activeProject) {
+    throw new Error("โครงการนี้ปิดงานหรือยกเลิกแล้ว กรุณาเลือกโครงการที่ยังดำเนินการอยู่");
+  }
   const previous = activeTrip || process.env.ENABLE_LEGACY_TRAVEL_FALLBACK !== "true"
     ? null
     : await prisma.checkIn.findFirst({
@@ -953,6 +973,17 @@ export async function createCheckInAction(formData: FormData) {
   const odometerStartPhotoUrl = await saveImageFromForm(formData, "odometerStartPhoto", "odometers", user.id);
 
   const { checkIn, anomalyContext } = await prisma.$transaction(async (tx) => {
+    const projectStillActive = await tx.project.findFirst({
+      where: {
+        id: resolvedProjectId,
+        status: { notIn: ["COMPLETED", "CLOSED_LOST", "CANCELLED"] }
+      },
+      select: { id: true }
+    });
+    if (!projectStillActive) {
+      throw new Error("โครงการนี้ปิดงานหรือยกเลิกแล้ว กรุณาเลือกโครงการที่ยังดำเนินการอยู่");
+    }
+
     let anomalyContext: {
       sourceKey: string;
       travelLegId: string;
@@ -1294,15 +1325,17 @@ export async function checkoutAction(formData: FormData) {
     return current;
   });
 
-  await detectOdometerReversed({
-    sourceKey: `checkout:${checkIn.id}`,
-    userId: user.id,
-    vehicleId: activeVisit.vehicleId,
-    checkInId: checkIn.id,
-    previousKm: activeVisit.odometerStartKm,
-    currentKm: odometerEndKm,
-    label: "Check-out odometer"
-  });
+  await settleAnomalyTasks([
+    detectOdometerReversed({
+      sourceKey: `checkout:${checkIn.id}`,
+      userId: user.id,
+      vehicleId: activeVisit.vehicleId,
+      checkInId: checkIn.id,
+      previousKm: activeVisit.odometerStartKm,
+      currentKm: odometerEndKm,
+      label: "Check-out odometer"
+    })
+  ], `check-out ${checkIn.id}`);
 
   revalidatePath("/check-in");
   revalidatePath("/dashboard");
@@ -2195,16 +2228,18 @@ export async function createFuelLogAction(formData: FormData) {
     return created;
   });
 
-  await detectOdometerReversed({
-    sourceKey: `fuel:${fuelLog.id}`,
-    userId: user.id,
-    vehicleId: vehicle.id,
-    fuelLogId: fuelLog.id,
-    previousKm: previousFuelLog?.odometerKm,
-    currentKm: input.odometerKm,
-    label: "Fuel odometer"
-  });
-  await detectFuelEfficiencyAnomaly(fuelLog.id);
+  await settleAnomalyTasks([
+    detectOdometerReversed({
+      sourceKey: `fuel:${fuelLog.id}`,
+      userId: user.id,
+      vehicleId: vehicle.id,
+      fuelLogId: fuelLog.id,
+      previousKm: previousFuelLog?.odometerKm,
+      currentKm: input.odometerKm,
+      label: "Fuel odometer"
+    }),
+    detectFuelEfficiencyAnomaly(fuelLog.id)
+  ], `fuel log ${fuelLog.id}`);
 
   revalidatePath("/fuel");
   revalidatePath("/reports");

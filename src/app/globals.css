@@ -272,6 +272,15 @@ a {
   font-weight: 700;
 }
 
+.field:has(input[required], select[required], textarea[required]) > label::after,
+label.required-label::after {
+  content: "*";
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .input,
 .select,
 .textarea {

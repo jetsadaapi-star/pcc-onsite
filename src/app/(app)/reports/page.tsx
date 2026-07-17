@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDateTime, formatMoney, formatNumber } from "@/lib/format";
 import { claimStatusLabels, claimTone } from "@/lib/labels";
-import { buildReportQuery, buildTravelClaimWhere, normalizeReportFilters, reportStatusOptions, type ReportFilterInput } from "@/lib/report-filters";
+import { buildBangkokReportDateFilter, buildReportQuery, buildTravelClaimWhere, normalizeReportFilters, reportStatusOptions, type ReportFilterInput } from "@/lib/report-filters";
 
 type ReportsSearchParams = ReportFilterInput;
 
@@ -19,21 +19,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     ...(user.role === "ADMIN" ? {} : { userId: user.id }),
     ...(filters.vehicleId ? { vehicleId: filters.vehicleId } : {})
   };
-  if (filters.month) {
-    const fromDate = new Date(`${filters.month}-01T00:00:00.000`);
-    const toDate = new Date(fromDate);
-    toDate.setMonth(toDate.getMonth() + 1);
-    fuelWhere.fueledAt = { gte: fromDate, lt: toDate };
-  } else if (filters.from || filters.to) {
-    const fueledAt: Prisma.DateTimeFilter = {};
-    if (filters.from) fueledAt.gte = new Date(filters.from);
-    if (filters.to) {
-      const end = new Date(filters.to);
-      end.setHours(23, 59, 59, 999);
-      fueledAt.lte = end;
-    }
-    fuelWhere.fueledAt = fueledAt;
-  }
+  const fueledAt = buildBangkokReportDateFilter(filters);
+  if (fueledAt) fuelWhere.fueledAt = fueledAt;
 
   const [claims, summary, users, vehicles, fuelLogs, openAnomalies] = await Promise.all([
     prisma.travelClaim.findMany({

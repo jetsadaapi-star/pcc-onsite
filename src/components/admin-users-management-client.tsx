@@ -17,7 +17,8 @@ import {
 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createUserAction, deleteUserAction, toggleUserActiveAction, updateUserAction } from "@/lib/actions";
+import { deleteUserAction, toggleUserActiveAction } from "@/lib/actions";
+import { saveAdminUserFormAction } from "@/lib/form-actions";
 
 export type AdminUserRow = {
   id: string;
@@ -70,11 +71,16 @@ function UserFormModal({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const action = user ? updateUserAction : createUserAction;
+  const [actionError, setActionError] = useState<string | null>(null);
 
   function submit(formData: FormData) {
+    setActionError(null);
     startTransition(async () => {
-      await action(formData);
+      const result = await saveAdminUserFormAction(formData);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
       onClose();
       router.refresh();
     });
@@ -96,6 +102,7 @@ function UserFormModal({
 
         <form action={submit} className="vehicle-modal-form" key={user?.id ?? "new-user"}>
           {user ? <input type="hidden" name="id" value={user.id} /> : null}
+          {actionError ? <div className="error-banner" role="alert">{actionError}</div> : null}
 
           <div className="form-grid two">
             <div className="field">

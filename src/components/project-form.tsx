@@ -4,7 +4,7 @@ import { ArrowLeft, Building2, ClipboardList, LocateFixed, MapPinned, Navigation
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { ProjectLocationMap, type ProjectLocation } from "@/components/project-location-map";
-import { createProjectAction } from "@/lib/actions";
+import { createProjectFormAction } from "@/lib/form-actions";
 
 type ProjectFormProps = {
   backHref?: string;
@@ -18,6 +18,7 @@ export function ProjectForm({ backHref = "/projects", redirectTo = "/projects" }
   const [coordinateError, setCoordinateError] = useState<string | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const gpsText = useMemo(() => {
     if (!gps) return "ยังไม่ได้ดึงตำแหน่ง";
@@ -104,13 +105,16 @@ export function ProjectForm({ backHref = "/projects", redirectTo = "/projects" }
   return (
     <form
       action={(formData) => {
+        setActionError(null);
         startTransition(async () => {
-          await createProjectAction(formData);
+          const result = await createProjectFormAction(formData);
+          if (!result.ok) setActionError(result.error);
         });
       }}
       className="new-project-form"
     >
       <input type="hidden" name="redirectTo" value={redirectTo} />
+      {actionError ? <div className="error-banner" role="alert">{actionError}</div> : null}
 
       <section className="new-project-form-card">
         <div className="new-project-step-head">

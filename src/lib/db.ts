@@ -3,6 +3,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { attachDatabasePool } from "@vercel/functions";
 import { Pool } from "pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { getRequiredDatabaseUrl } from "@/lib/database-url";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
@@ -14,7 +15,7 @@ const prismaSchemaVersion = "20260713112000_performance_indexes";
 
 function createPool() {
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL ?? "",
+    connectionString: getRequiredDatabaseUrl(),
     max: 5,
     connectionTimeoutMillis: 10_000,
     idleTimeoutMillis: 30_000
