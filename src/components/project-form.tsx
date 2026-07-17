@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Building2, ClipboardList, LocateFixed, MapPinned, Phone, Save, UserRound } from "lucide-react";
+import { ArrowLeft, Building2, ClipboardList, LocateFixed, MapPinned, Navigation, Phone, Save, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { ProjectLocationMap, type ProjectLocation } from "@/components/project-location-map";
@@ -13,6 +13,9 @@ type ProjectFormProps = {
 
 export function ProjectForm({ backHref = "/projects", redirectTo = "/projects" }: ProjectFormProps) {
   const [gps, setGps] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
+  const [latitudeInput, setLatitudeInput] = useState("");
+  const [longitudeInput, setLongitudeInput] = useState("");
+  const [coordinateError, setCoordinateError] = useState<string | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -20,6 +23,43 @@ export function ProjectForm({ backHref = "/projects", redirectTo = "/projects" }
     if (!gps) return "ยังไม่ได้ดึงตำแหน่ง";
     return `${gps.latitude.toFixed(6)}, ${gps.longitude.toFixed(6)}${gps.accuracy ? ` ±${Math.round(gps.accuracy)}m` : ""}`;
   }, [gps]);
+
+  function parseCoordinates(latitudeValue: string, longitudeValue: string) {
+    if (!latitudeValue.trim() || !longitudeValue.trim()) return null;
+    const latitude = Number(latitudeValue);
+    const longitude = Number(longitudeValue);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
+    return { latitude, longitude };
+  }
+
+  function handleCoordinateChange(latitudeValue: string, longitudeValue: string) {
+    setLatitudeInput(latitudeValue);
+    setLongitudeInput(longitudeValue);
+    setCoordinateError(null);
+
+    const location = parseCoordinates(latitudeValue, longitudeValue);
+    if (location) {
+      setGps(location);
+      setGpsError(null);
+    } else {
+      setGps(null);
+    }
+  }
+
+  function applyCoordinates() {
+    const location = parseCoordinates(latitudeInput, longitudeInput);
+    if (!location) {
+      setCoordinateError("กรุณากรอกละติจูด -90 ถึง 90 และลองจิจูด -180 ถึง 180 ให้ครบทั้งสองช่อง");
+      return;
+    }
+
+    setGps(location);
+    setLatitudeInput(location.latitude.toFixed(6));
+    setLongitudeInput(location.longitude.toFixed(6));
+    setGpsError(null);
+    setCoordinateError(null);
+  }
 
   function captureGps() {
     setGpsError(null);
@@ -34,6 +74,8 @@ export function ProjectForm({ backHref = "/projects", redirectTo = "/projects" }
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setGpsLoading(false);
+        setLatitudeInput(position.coords.latitude.toFixed(6));
+        setLongitudeInput(position.coords.longitude.toFixed(6));
         setGps({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -49,11 +91,14 @@ export function ProjectForm({ backHref = "/projects", redirectTo = "/projects" }
   }
 
   function updateLocation(location: ProjectLocation) {
+    setLatitudeInput(location.latitude.toFixed(6));
+    setLongitudeInput(location.longitude.toFixed(6));
     setGps({
       latitude: location.latitude,
       longitude: location.longitude
     });
     setGpsError(null);
+    setCoordinateError(null);
   }
 
   return (
@@ -66,8 +111,6 @@ export function ProjectForm({ backHref = "/projects", redirectTo = "/projects" }
       className="new-project-form"
     >
       <input type="hidden" name="redirectTo" value={redirectTo} />
-      <input type="hidden" name="latitude" value={gps?.latitude ?? ""} />
-      <input type="hidden" name="longitude" value={gps?.longitude ?? ""} />
 
       <section className="new-project-form-card">
         <div className="new-project-step-head">
@@ -115,6 +158,54 @@ export function ProjectForm({ backHref = "/projects", redirectTo = "/projects" }
           </div>
         </button>
         {gpsError ? <div className="new-project-alert">{gpsError}</div> : null}
+
+        <div className="project-coordinate-panel">
+          <div className="project-coordinate-copy">
+            <strong>วางพิกัดละติจูด / ลองจิจูด</strong>
+            <span>กรอกพิกัดให้ครบ แล้วหมุดบนแผนที่จะเลื่อนไปยังตำแหน่งนั้น</span>
+          </div>
+          <div className="project-coordinate-fields">
+            <div className="field">
+              <label htmlFor="latitude">ละติจูด (Latitude)</label>
+              <input
+                className="input"
+                id="latitude"
+                inputMode="decimal"
+                max="90"
+                min="-90"
+                name="latitude"
+                onChange={(event) => handleCoordinateChange(event.target.value, longitudeInput)}
+                placeholder="13.756300"
+                required={Boolean(longitudeInput.trim())}
+                step="any"
+                type="number"
+                value={latitudeInput}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="longitude">ลองจิจูด (Longitude)</label>
+              <input
+                className="input"
+                id="longitude"
+                inputMode="decimal"
+                max="180"
+                min="-180"
+                name="longitude"
+                onChange={(event) => handleCoordinateChange(latitudeInput, event.target.value)}
+                placeholder="100.501800"
+                required={Boolean(latitudeInput.trim())}
+                step="any"
+                type="number"
+                value={longitudeInput}
+              />
+            </div>
+            <button className="button secondary project-coordinate-apply" type="button" onClick={applyCoordinates}>
+              <Navigation size={16} />
+              ไปยังพิกัด
+            </button>
+          </div>
+          {coordinateError ? <div className="project-coordinate-error" role="alert">{coordinateError}</div> : null}
+        </div>
 
         <div className="project-location-picker">
           <div className="project-location-picker-head">
