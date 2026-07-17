@@ -1,4 +1,4 @@
-import { Clock3, MapPinned, Navigation, Plus, Route } from "lucide-react";
+import { MapPinned, Navigation, Plus, Route } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CancelTripButton } from "@/components/cancel-trip-button";
@@ -187,7 +187,7 @@ export default async function CheckInPage() {
             <h2>ประวัติล่าสุด</h2>
             <p>เข้า-ออกงานล่าสุดของคุณ</p>
           </div>
-          <Clock3 size={20} color="#095aa4" />
+          <Link className="row-view-button" href="/history">ดูทั้งหมด</Link>
         </div>
         <div className="visit-history-list">
           {recentCheckIns.map((item) => (

@@ -19,12 +19,8 @@ import { calculateHaversineKm, getRouteDistance } from "@/lib/distance";
 import { processCheckoutReminders } from "@/lib/notifications";
 import { calculateReimbursement } from "@/lib/reimbursement";
 import { canTransitionProjectStatus, type ProjectStatus } from "@/lib/project-status";
+import { getNumber, getString } from "@/lib/form-values";
 import type { CheckInPurpose, CheckOutStatus, ClaimStatus, FuelType, Role, TripOriginType } from "@/generated/prisma/enums";
-
-function getString(formData: FormData, key: string) {
-  const value = formData.get(key);
-  return typeof value === "string" ? value.trim() : "";
-}
 
 function getSafeRedirectPath(value: string) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return undefined;
@@ -41,11 +37,6 @@ function withQueryParam(path: string, key: string, value: string) {
   const url = new URL(path, "http://localhost");
   url.searchParams.set(key, value);
   return `${url.pathname}${url.search}${url.hash}`;
-}
-
-function getNumber(formData: FormData, key: string) {
-  const value = Number(getString(formData, key));
-  return Number.isFinite(value) ? value : undefined;
 }
 
 function getDate(formData: FormData, key: string) {
@@ -284,6 +275,10 @@ const cancelTripSchema = z.object({
 });
 
 export async function logoutAction() {
+  const user = await requireUser();
+  await prisma.activityLog.create({
+    data: { actorId: user.id, entityType: "User", entityId: user.id, action: "LOGOUT" }
+  }).catch((auditError) => console.error("Failed to record logout activity", auditError));
   await destroySession();
   redirect("/login");
 }
@@ -870,7 +865,6 @@ export async function deleteProjectAction(formData: FormData) {
   }
 
   await prisma.$transaction([
-    prisma.activityLog.deleteMany({ where: { entityType: "Project", entityId: id } }),
     prisma.project.delete({ where: { id } }),
     prisma.activityLog.create({
       data: {
@@ -1355,6 +1349,9 @@ export async function reviewTravelClaimAction(formData: FormData) {
   if (!["APPROVED", "REJECTED", "PAID"].includes(status)) {
     throw new Error("Invalid claim status");
   }
+  if (status === "REJECTED" && !adminNote) {
+    throw new Error("Rejection reason is required");
+  }
   if (overrideTotalAmount !== undefined && !overrideReason) {
     throw new Error("Override reason is required");
   }
@@ -1398,7 +1395,13 @@ export async function reviewTravelClaimAction(formData: FormData) {
         entityType: "TravelClaim",
         entityId: id,
         action: "REVIEW_TRAVEL_CLAIM",
-        metadata: { from: claim.status, to: status, previousTotalAmount: claim.totalAmount, overrideTotalAmount, overrideReason }
+        metadata: {
+          from: claim.status,
+          to: status,
+          previousTotalAmount: Number(claim.totalAmount),
+          ...(overrideTotalAmount !== undefined ? { overrideTotalAmount } : {}),
+          ...(overrideReason ? { overrideReason } : {})
+        }
       }
     });
   });
@@ -2135,7 +2138,6 @@ export async function deleteCheckInAction(formData: FormData) {
     await tx.odometerLog.deleteMany({ where: { checkInId: id } });
     await tx.checkIn.delete({ where: { id } });
     if (checkIn.tripSessionId) await tx.tripSession.delete({ where: { id: checkIn.tripSessionId } });
-    await tx.activityLog.deleteMany({ where: { entityType: "CheckIn", entityId: id } });
     await tx.activityLog.create({
       data: { actorId: admin.id, entityType: "CheckIn", entityId: id, action: "DELETE_CHECK_IN", metadata: { userId: checkIn.userId, projectId: checkIn.projectId } }
     });
@@ -2418,7 +2420,6 @@ export async function deleteUserAction(formData: FormData) {
     prisma.notificationLog.deleteMany({ where: { userId: id } }),
     prisma.anomalyRecord.deleteMany({ where: { userId: id } }),
     prisma.exportDocument.updateMany({ where: { generatedById: id }, data: { generatedById: null } }),
-    prisma.activityLog.deleteMany({ where: { OR: [{ actorId: id }, { entityType: "User", entityId: id }] } }),
     prisma.user.delete({ where: { id } }),
     prisma.activityLog.create({
       data: {

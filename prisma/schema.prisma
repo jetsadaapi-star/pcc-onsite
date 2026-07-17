@@ -609,4 +609,7 @@ model ActivityLog {
 
   @@index([entityType, entityId])
   @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([entityType, createdAt])
 }

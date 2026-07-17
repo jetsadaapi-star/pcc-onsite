@@ -40,6 +40,18 @@ function isNextControlFlowError(error: unknown) {
 
 function userMessage(error: unknown) {
   if (error instanceof Error) {
+    const travelMessages: Array<[string, string]> = [
+      ["Invalid claim status", "สถานะรายการเดินทางไม่ถูกต้อง กรุณารีเฟรชหน้าแล้วลองอีกครั้ง"],
+      ["Rejection reason is required", "กรุณาระบุเหตุผลก่อนปฏิเสธรายการค่าเดินทาง"],
+      ["Override reason is required", "กรุณาระบุเหตุผลเมื่อปรับยอดค่าเดินทาง"],
+      ["Override amount must be", "ยอดที่ปรับต้องอยู่ระหว่าง 0 ถึง 1,000,000 บาท"],
+      ["Travel claim not found", "ไม่พบรายการค่าเดินทางนี้ อาจถูกลบหรือเปลี่ยนแปลงแล้ว"],
+      ["Cannot change claim from", "สถานะรายการถูกเปลี่ยนไปแล้ว กรุณารีเฟรชหน้าเพื่อตรวจสอบสถานะล่าสุด"],
+      ["Only pending claims can be adjusted", "ปรับยอดได้เฉพาะรายการที่กำลังรอตรวจสอบ"],
+      ["Claim was changed by another administrator", "มีแอดมินคนอื่นแก้รายการนี้แล้ว กรุณารีเฟรชหน้าและลองอีกครั้ง"]
+    ];
+    const matchedTravelMessage = travelMessages.find(([source]) => error.message.includes(source));
+    if (matchedTravelMessage) return matchedTravelMessage[1];
     if (error.message.includes("Total upload size")) return "รูปทั้งหมดมีขนาดเกิน 7 MB กรุณาลดจำนวนรูปแล้วลองใหม่";
     if (error.message.includes("Maximum file size is 5 MB")) return "รูปมีขนาดเกิน 5 MB กรุณาเลือกรูปที่เล็กลง";
     if (/[฀-๿]/.test(error.message)) return error.message;

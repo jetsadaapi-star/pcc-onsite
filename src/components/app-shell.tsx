@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   Fuel,
   Gauge,
+  History,
   LogOut,
   MapPinned,
   Menu,
@@ -49,6 +50,7 @@ type NavItem = {
 const mainNav: NavItem[] = [
   { href: "/dashboard", label: "ภาพรวม", description: "งานและค่าเดินทาง", icon: Gauge, tone: "blue" },
   { href: "/check-in", label: "เช็คอินหน้างาน", description: "GPS และรูปหลักฐาน", icon: MapPinned, tone: "teal" },
+  { href: "/history", label: "ประวัติเช็กอิน", description: "เวลา พิกัด และหลักฐานของฉัน", icon: History, tone: "blue" },
   { href: "/projects", label: "โครงการ/หน้างาน", description: "ค้นหาและเปลี่ยนสถานะ", icon: BriefcaseBusiness, tone: "amber" },
   { href: "/vehicles", label: "รถของฉัน", description: "เพิ่มรถและรออนุมัติ", icon: CarFront, tone: "teal" },
   { href: "/fuel", label: "บันทึกเติมน้ำมัน", description: "เลขไมล์และใบเสร็จ", icon: Fuel, tone: "rose" },
@@ -68,6 +70,7 @@ const adminNav: NavItem[] = [
   { href: "/admin/anomalies", label: "ตรวจความผิดปกติ", description: "GPS เลขไมล์ และค่าน้ำมัน", icon: AlertTriangle, tone: "amber" },
   { href: "/admin/vehicles", label: "จัดการรถ", description: "รถ อัตราสิ้นเปลือง และสถานะ", icon: CarFront, tone: "teal" },
   { href: "/admin/travel", label: "ค่าเดินทาง", description: "อนุมัติและตั้งค่าเรต", icon: ReceiptText, tone: "rose" },
+  { href: "/admin/activity", label: "Audit Log", description: "ตรวจสอบกิจกรรมและการเปลี่ยนแปลง", icon: History, tone: "blue" },
   { href: "/admin/users", label: "ผู้ใช้งาน", description: "บัญชีและสิทธิ์", icon: Users, tone: "violet" }
 ];
 

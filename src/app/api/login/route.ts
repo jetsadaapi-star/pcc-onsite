@@ -41,6 +41,14 @@ export async function POST(request: Request) {
       })
     ]);
     await createSession(user.id, user.sessionVersion);
+    await prisma.activityLog.create({
+      data: {
+        actorId: user.id,
+        entityType: "User",
+        entityId: user.id,
+        action: "LOGIN_SUCCESS"
+      }
+    }).catch((auditError) => console.error("Failed to record login activity", auditError));
 
     return redirectTo(user.role === "ADMIN" ? "/admin" : "/dashboard");
   } catch (error) {

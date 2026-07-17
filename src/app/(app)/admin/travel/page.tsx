@@ -3,10 +3,12 @@ import {
   CalendarDays,
   CheckCircle2,
   CircleDollarSign,
+  Clock3,
   ClipboardCheck,
   Filter,
   Fuel,
   Gauge,
+  MapPin,
   ReceiptText,
   Route,
   Search,
@@ -90,7 +92,7 @@ function TravelReviewActions({
       <div className="admin-travel-quick-actions">
         {claim.status === "PENDING_REVIEW" ? (
           <>
-            <ActionFeedbackForm action={reviewTravelClaimFormAction}>
+            <ActionFeedbackForm action={reviewTravelClaimFormAction} successMessage="อนุมัติรายการแล้ว">
               <input type="hidden" name="id" value={claim.id} />
               <input type="hidden" name="status" value="APPROVED" />
               <button className="admin-travel-action approve" type="submit">
@@ -98,18 +100,10 @@ function TravelReviewActions({
                 อนุมัติ
               </button>
             </ActionFeedbackForm>
-            <ActionFeedbackForm action={reviewTravelClaimFormAction}>
-              <input type="hidden" name="id" value={claim.id} />
-              <input type="hidden" name="status" value="REJECTED" />
-              <button className="admin-travel-action reject" type="submit">
-                <AlertTriangle size={14} />
-                ปฏิเสธ
-              </button>
-            </ActionFeedbackForm>
           </>
         ) : null}
         {claim.status === "APPROVED" ? (
-          <ActionFeedbackForm action={reviewTravelClaimFormAction}>
+          <ActionFeedbackForm action={reviewTravelClaimFormAction} successMessage="บันทึกการจ่ายแล้ว">
             <input type="hidden" name="id" value={claim.id} />
             <input type="hidden" name="status" value="PAID" />
             <button className="admin-travel-action paid" type="submit">
@@ -125,7 +119,7 @@ function TravelReviewActions({
           <Settings2 size={14} />
           ปรับยอด/หมายเหตุ
         </summary>
-        <ActionFeedbackForm action={reviewTravelClaimFormAction} className="admin-travel-adjust-form">
+        <ActionFeedbackForm action={reviewTravelClaimFormAction} className="admin-travel-adjust-form" successMessage="บันทึกรายละเอียดแล้ว">
           <input type="hidden" name="id" value={claim.id} />
           <select className="select" name="status" defaultValue={claim.status === "PENDING_REVIEW" ? "APPROVED" : claim.status}>
             <option value="APPROVED">อนุมัติ</option>
@@ -133,7 +127,7 @@ function TravelReviewActions({
           </select>
           <input className="input" name="overrideTotalAmount" type="number" min="0" step="0.01" placeholder={`ยอดปัจจุบัน ${formatMoney(claim.totalAmount)}`} />
           <input className="input" name="overrideReason" placeholder="เหตุผลเมื่อปรับยอด" />
-          <input className="input" name="adminNote" placeholder="หมายเหตุแอดมิน" defaultValue={claim.adminNote ?? ""} />
+          <input className="input" name="adminNote" placeholder="หมายเหตุแอดมิน (จำเป็นเมื่อปฏิเสธ)" defaultValue={claim.adminNote ?? ""} />
           <button className="button secondary" type="submit">บันทึกรายละเอียด</button>
         </ActionFeedbackForm>
       </details> : null}
@@ -189,7 +183,7 @@ export default async function AdminTravelPage({
 
   if (and.length) where.AND = and;
 
-  const [claims, total, summary, pendingAll, distancePendingAll, users, rate] = await Promise.all([
+  const [claims, total, summary, distancePendingAll, users, rate, statusGroups, liveMetricsRows, activeTrips, openVisits] = await Promise.all([
     prisma.travelClaim.findMany({
       where,
       orderBy: [{ status: "asc" }, { submittedAt: "desc" }],
@@ -241,15 +235,50 @@ export default async function AdminTravelPage({
         distanceKm: true
       }
     }),
-    prisma.travelClaim.count({ where: { status: "PENDING_REVIEW" } }),
     prisma.travelClaim.count({ where: { travelLeg: { is: { distanceStatus: "PENDING_REVIEW" } } } }),
     prisma.user.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
       select: { id: true, name: true, role: true }
     }),
-    prisma.reimbursementRate.findFirst({ where: { active: true }, orderBy: { activeFrom: "desc" } })
+    prisma.reimbursementRate.findFirst({ where: { active: true }, orderBy: { activeFrom: "desc" } }),
+    prisma.travelClaim.groupBy({ by: ["status"], _count: true }),
+    prisma.$queryRaw<Array<{ activeTripTotal: number; openVisitTotal: number }>>`
+      SELECT
+        (SELECT COUNT(*)::int FROM "TripSession" WHERE "status" = 'ACTIVE') AS "activeTripTotal",
+        (SELECT COUNT(*)::int FROM "CheckIn" WHERE "checkedOutAt" IS NULL) AS "openVisitTotal"
+    `,
+    prisma.tripSession.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { startedAt: "asc" },
+      take: 6,
+      select: {
+        id: true,
+        originLabel: true,
+        destinationLabel: true,
+        destinationType: true,
+        startedAt: true,
+        user: { select: { id: true, name: true } },
+        vehicle: { select: { name: true, licensePlate: true } },
+        destinationProject: { select: { name: true } }
+      }
+    }),
+    prisma.checkIn.findMany({
+      where: { checkedOutAt: null },
+      orderBy: { checkedAt: "asc" },
+      take: 6,
+      select: {
+        id: true,
+        checkedAt: true,
+        user: { select: { id: true, name: true } },
+        project: { select: { code: true, name: true } }
+      }
+    })
   ]);
+
+  const statusCounts = new Map(statusGroups.map((item) => [item.status, item._count]));
+  const pendingAll = statusCounts.get("PENDING_REVIEW") ?? 0;
+  const liveMetrics = liveMetricsRows[0] ?? { activeTripTotal: 0, openVisitTotal: 0 };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   if (total > 0 && currentPage > totalPages) {
@@ -296,6 +325,64 @@ export default async function AdminTravelPage({
         <div>
           <span><AlertTriangle size={16} /> ระยะทางรอตรวจ</span>
           <strong>{distancePendingAll}</strong>
+        </div>
+      </section>
+
+      <nav className="admin-travel-workflow" aria-label="สถานะการจัดการค่าเดินทาง">
+        {[
+          { value: undefined, label: "ทั้งหมด", count: Array.from(statusCounts.values()).reduce((sum, count) => sum + count, 0) },
+          { value: "PENDING_REVIEW", label: "รอตรวจสอบ", count: statusCounts.get("PENDING_REVIEW") ?? 0 },
+          { value: "APPROVED", label: "อนุมัติแล้ว · รอจ่าย", count: statusCounts.get("APPROVED") ?? 0 },
+          { value: "PAID", label: "จ่ายแล้ว", count: statusCounts.get("PAID") ?? 0 },
+          { value: "REJECTED", label: "ปฏิเสธ", count: statusCounts.get("REJECTED") ?? 0 }
+        ].map((item) => (
+          <Link
+            key={item.value ?? "all"}
+            className={`admin-travel-workflow-link ${(status ?? undefined) === item.value ? "active" : ""}`}
+            href={buildHref(params, { status: item.value, page: undefined })}
+          >
+            <span>{item.label}</span><strong>{item.count}</strong>
+          </Link>
+        ))}
+      </nav>
+
+      <section className="admin-travel-live-grid">
+        <div className="admin-travel-live-panel">
+          <div className="admin-travel-card-head compact">
+            <div><span><Route size={15} /> Live trips</span><h2>กำลังเดินทาง</h2><p>ทริปที่เริ่มแล้วแต่ยังไม่ถึงปลายทาง</p></div>
+            <strong className="admin-travel-live-count">{liveMetrics.activeTripTotal}</strong>
+          </div>
+          <div className="admin-travel-live-list">
+            {activeTrips.map((trip) => (
+              <article key={trip.id}>
+                <span className="admin-travel-live-icon"><MapPin size={15} /></span>
+                <div>
+                  <strong>{trip.user.name}</strong>
+                  <span>{trip.originLabel ?? "จุดเริ่มต้น"} → {trip.destinationProject?.name ?? trip.destinationLabel ?? (trip.destinationType === "OFFICE" ? "สำนักงาน" : "ปลายทาง")}</span>
+                  <small>เริ่ม {formatDateTime(trip.startedAt)}{trip.vehicle ? ` · ${trip.vehicle.name}${trip.vehicle.licensePlate ? ` ${trip.vehicle.licensePlate}` : ""}` : ""}</small>
+                </div>
+                <Link href={`/admin/check-ins?userId=${trip.user.id}`}>ดูประวัติ</Link>
+              </article>
+            ))}
+            {activeTrips.length === 0 ? <div className="empty">ไม่มีพนักงานกำลังเดินทาง</div> : null}
+          </div>
+        </div>
+
+        <div className="admin-travel-live-panel">
+          <div className="admin-travel-card-head compact">
+            <div><span><Clock3 size={15} /> Open visits</span><h2>อยู่หน้างาน</h2><p>เช็กอินแล้วและยังไม่ได้เช็กเอาท์</p></div>
+            <strong className="admin-travel-live-count warning">{liveMetrics.openVisitTotal}</strong>
+          </div>
+          <div className="admin-travel-live-list">
+            {openVisits.map((visit) => (
+              <article key={visit.id}>
+                <span className="admin-travel-live-icon warning"><Clock3 size={15} /></span>
+                <div><strong>{visit.user.name}</strong><span>{visit.project.code} · {visit.project.name}</span><small>เช็กอิน {formatDateTime(visit.checkedAt)}</small></div>
+                <Link href={`/admin/check-ins?userId=${visit.user.id}&visitStatus=open`}>ตรวจสอบ</Link>
+              </article>
+            ))}
+            {openVisits.length === 0 ? <div className="empty">ไม่มีเช็กอินที่ยังเปิดอยู่</div> : null}
+          </div>
         </div>
       </section>
 

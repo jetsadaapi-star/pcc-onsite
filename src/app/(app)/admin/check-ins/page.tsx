@@ -1,11 +1,9 @@
 import {
   CalendarDays,
-  CheckCircle2,
   ClipboardCheck,
   Clock3,
   Filter,
   Gauge,
-  ImageIcon,
   MapPin,
   Search,
   Trash2,
@@ -15,11 +13,13 @@ import {
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@/generated/prisma/client";
+import { CheckInEvidenceGallery } from "@/components/check-in-evidence-gallery";
 import { ConfirmActionForm } from "@/components/confirm-action-form";
 import { deleteCheckInAction } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { bangkokDateRange, startOfCurrentBangkokDay } from "@/lib/bangkok-time";
 import { prisma } from "@/lib/db";
+import { buildCheckInEvidence } from "@/lib/check-in-evidence";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { checkoutStatusLabels, purposeLabels, roleLabels } from "@/lib/labels";
 
@@ -139,7 +139,9 @@ export default async function AdminCheckInsPage({
         checkoutPhotoUrl: true,
         checkoutPhotoUrls: true,
         odometerStartKm: true,
+        odometerStartPhotoUrl: true,
         odometerEndKm: true,
+        odometerEndPhotoUrl: true,
         odometerDistanceKm: true,
         user: { select: { id: true, name: true, email: true, role: true } },
         project: { select: { id: true, code: true, name: true, customerName: true, province: true } },
@@ -292,12 +294,7 @@ export default async function AdminCheckInsPage({
             <tbody>
               {checkIns.map((item) => {
                 const isOpen = !item.checkedOutAt;
-                const proofCount = new Set([
-                  item.photoUrl,
-                  item.checkoutPhotoUrl,
-                  ...item.photoUrls,
-                  ...item.checkoutPhotoUrls
-                ].filter(Boolean)).size;
+                const evidence = buildCheckInEvidence(item);
 
                 return (
                   <tr key={item.id}>
@@ -331,12 +328,12 @@ export default async function AdminCheckInsPage({
                           {formatNumber(item.odometerDistanceKm, 1)} กม.
                         </div>
                       ) : null}
+                      {item.odometerStartKm !== null || item.odometerEndKm !== null ? (
+                        <div className="muted">เลขไมล์ {item.odometerStartKm ?? "-"} → {item.odometerEndKm ?? "-"}</div>
+                      ) : null}
                     </td>
                     <td>
-                      <span className={proofCount ? "admin-checkins-proof ok" : "admin-checkins-proof"}>
-                        {proofCount ? <CheckCircle2 size={14} /> : <ImageIcon size={14} />}
-                        {proofCount || "ไม่มีรูป"}
-                      </span>
+                      <CheckInEvidenceGallery items={evidence} />
                       {item.vehicle ? <div className="muted">{item.vehicle.name}{item.vehicle.licensePlate ? ` · ${item.vehicle.licensePlate}` : ""}</div> : null}
                     </td>
                     <td>
@@ -364,12 +361,7 @@ export default async function AdminCheckInsPage({
         <div className="admin-checkins-mobile-list">
           {checkIns.map((item) => {
             const isOpen = !item.checkedOutAt;
-            const proofCount = new Set([
-              item.photoUrl,
-              item.checkoutPhotoUrl,
-              ...item.photoUrls,
-              ...item.checkoutPhotoUrls
-            ].filter(Boolean)).size;
+            const evidence = buildCheckInEvidence(item);
 
             return (
               <article className="admin-checkins-mobile-card" key={item.id}>
@@ -385,9 +377,10 @@ export default async function AdminCheckInsPage({
                 </Link>
                 <div className="admin-checkins-mobile-meta">
                   <span><ClipboardCheck size={14} /> {purposeLabels[item.purpose]}</span>
-                  <span><ImageIcon size={14} /> {proofCount || "ไม่มีรูป"}</span>
+                  <span>หลักฐาน {evidence.length} ไฟล์</span>
                   {item.odometerDistanceKm !== null ? <span><Gauge size={14} /> {formatNumber(item.odometerDistanceKm, 1)} กม.</span> : null}
                 </div>
+                <CheckInEvidenceGallery items={evidence} />
                 <a
                   className="admin-checkins-map-link"
                   href={googleMapsHref(item.latitude, item.longitude)}

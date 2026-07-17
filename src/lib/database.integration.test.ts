@@ -9,6 +9,46 @@ vi.mock("server-only", () => ({}));
 const runDatabaseTests = process.env.RUN_DB_TESTS === "true";
 
 describe.skipIf(!runDatabaseTests)("production database invariants", () => {
+  it("preserves activity history when an actor account is deleted", async () => {
+    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+    await client.query("BEGIN");
+
+    try {
+      const suffix = randomUUID();
+      const userId = `audit-user-${suffix}`;
+      const logId = `audit-log-${suffix}`;
+      await client.query(
+        `INSERT INTO "User" ("id", "email", "passwordHash", "name", "role", "active", "createdAt", "updatedAt")
+         VALUES ($1, $2, 'test-only', 'Audit Integration Test', 'EMPLOYEE', true, NOW(), NOW())`,
+        [userId, `audit-${suffix}@example.invalid`]
+      );
+      await client.query(
+        `INSERT INTO "ActivityLog" ("id", "actorId", "entityType", "entityId", "action", "metadata", "createdAt")
+         VALUES ($1, $2, 'User', $2, 'UPDATE_USER', '{"source":"integration-test"}'::jsonb, NOW())`,
+        [logId, userId]
+      );
+
+      await client.query(`DELETE FROM "User" WHERE "id" = $1`, [userId]);
+      const preserved = await client.query(
+        `SELECT "id", "actorId", "entityType", "entityId", "action" FROM "ActivityLog" WHERE "id" = $1`,
+        [logId]
+      );
+
+      expect(preserved.rows).toHaveLength(1);
+      expect(preserved.rows[0]).toMatchObject({
+        id: logId,
+        actorId: null,
+        entityType: "User",
+        entityId: userId,
+        action: "UPDATE_USER"
+      });
+    } finally {
+      await client.query("ROLLBACK");
+      await client.end();
+    }
+  });
+
   it("executes the fuel performance aggregate against the current schema", async () => {
     const rows = await getFuelPerformanceRows({});
     expect(Array.isArray(rows)).toBe(true);
