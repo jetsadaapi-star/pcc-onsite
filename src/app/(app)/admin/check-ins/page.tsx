@@ -13,7 +13,7 @@ import {
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@/generated/prisma/client";
-import { CheckInEvidenceGallery } from "@/components/check-in-evidence-gallery";
+import { AdminCheckInDetailButton } from "@/components/admin-check-in-detail-button";
 import { ConfirmActionForm } from "@/components/confirm-action-form";
 import { deleteCheckInAction } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
@@ -130,6 +130,8 @@ export default async function AdminCheckInsPage({
         latitude: true,
         longitude: true,
         accuracy: true,
+        checkoutLatitude: true,
+        checkoutLongitude: true,
         purpose: true,
         note: true,
         photoUrl: true,
@@ -333,7 +335,28 @@ export default async function AdminCheckInsPage({
                       ) : null}
                     </td>
                     <td>
-                      <CheckInEvidenceGallery items={evidence} />
+                      <span className={evidence.length ? "admin-checkins-proof ok" : "admin-checkins-proof"}>หลักฐาน {evidence.length} ไฟล์</span>
+                      <AdminCheckInDetailButton detail={{
+                        id: item.id,
+                        checkedAt: formatDateTime(item.checkedAt),
+                        checkedOutAt: item.checkedOutAt ? formatDateTime(item.checkedOutAt) : null,
+                        user: { name: item.user.name, email: item.user.email, roleLabel: roleLabels[item.user.role] },
+                        project: item.project,
+                        purposeLabel: purposeLabels[item.purpose],
+                        checkoutStatusLabel: item.checkoutStatus ? checkoutStatusLabels[item.checkoutStatus] : null,
+                        note: item.note,
+                        checkoutNote: item.checkoutNote,
+                        latitude: item.latitude,
+                        longitude: item.longitude,
+                        accuracy: item.accuracy,
+                        checkoutLatitude: item.checkoutLatitude,
+                        checkoutLongitude: item.checkoutLongitude,
+                        vehicle: item.vehicle,
+                        odometerStartKm: item.odometerStartKm,
+                        odometerEndKm: item.odometerEndKm,
+                        odometerDistanceKm: item.odometerDistanceKm,
+                        evidence
+                      }} />
                       {item.vehicle ? <div className="muted">{item.vehicle.name}{item.vehicle.licensePlate ? ` · ${item.vehicle.licensePlate}` : ""}</div> : null}
                     </td>
                     <td>
@@ -380,7 +403,27 @@ export default async function AdminCheckInsPage({
                   <span>หลักฐาน {evidence.length} ไฟล์</span>
                   {item.odometerDistanceKm !== null ? <span><Gauge size={14} /> {formatNumber(item.odometerDistanceKm, 1)} กม.</span> : null}
                 </div>
-                <CheckInEvidenceGallery items={evidence} />
+                <AdminCheckInDetailButton detail={{
+                  id: item.id,
+                  checkedAt: formatDateTime(item.checkedAt),
+                  checkedOutAt: item.checkedOutAt ? formatDateTime(item.checkedOutAt) : null,
+                  user: { name: item.user.name, email: item.user.email, roleLabel: roleLabels[item.user.role] },
+                  project: item.project,
+                  purposeLabel: purposeLabels[item.purpose],
+                  checkoutStatusLabel: item.checkoutStatus ? checkoutStatusLabels[item.checkoutStatus] : null,
+                  note: item.note,
+                  checkoutNote: item.checkoutNote,
+                  latitude: item.latitude,
+                  longitude: item.longitude,
+                  accuracy: item.accuracy,
+                  checkoutLatitude: item.checkoutLatitude,
+                  checkoutLongitude: item.checkoutLongitude,
+                  vehicle: item.vehicle,
+                  odometerStartKm: item.odometerStartKm,
+                  odometerEndKm: item.odometerEndKm,
+                  odometerDistanceKm: item.odometerDistanceKm,
+                  evidence
+                }} />
                 <a
                   className="admin-checkins-map-link"
                   href={googleMapsHref(item.latitude, item.longitude)}
