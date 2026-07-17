@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminDetailModal } from "@/components/admin-detail-modal";
 import {
   activityActionLabels,
   activityEntityHref,
@@ -61,16 +62,21 @@ function actionTone(action: string) {
   return "info";
 }
 
-function ActivityDetails({ metadata, entityId }: { metadata: unknown; entityId: string }) {
+function ActivityDetails({ metadata, entityId, entityType, action }: { metadata: unknown; entityId: string; entityType: string; action: string }) {
   return (
-    <details className="activity-details">
-      <summary>ดูรายละเอียด</summary>
-      <div>
-        <span>Entity ID</span>
-        <code>{entityId}</code>
-      </div>
-      <pre>{formatAuditMetadata(metadata)}</pre>
-    </details>
+    <AdminDetailModal eyebrow="Audit metadata" title={activityActionLabels[action] ?? action} subtitle={`${activityEntityLabels[entityType] ?? entityType} · ${entityId}`}>
+      <section className="admin-record-section">
+        <h3>ข้อมูลอ้างอิง</h3>
+        <div className="admin-record-grid two">
+          <div><span>Action</span><strong>{action}</strong></div>
+          <div><span>Entity ID</span><strong>{entityId}</strong></div>
+        </div>
+      </section>
+      <section className="admin-record-section">
+        <h3>Metadata</h3>
+        <pre className="activity-metadata-pre">{formatAuditMetadata(metadata)}</pre>
+      </section>
+    </AdminDetailModal>
   );
 }
 
@@ -222,7 +228,7 @@ export default async function AdminActivityPage({
                       <strong>{activityEntityLabels[log.entityType] ?? log.entityType}</strong>
                       {href ? <Link className="activity-entity-link" href={href}><ExternalLink size={13} /> เปิดหน้าที่เกี่ยวข้อง</Link> : null}
                     </td>
-                    <td><ActivityDetails metadata={log.metadata} entityId={log.entityId} /></td>
+                    <td><ActivityDetails metadata={log.metadata} entityId={log.entityId} entityType={log.entityType} action={log.action} /></td>
                   </tr>
                 );
               })}
@@ -244,7 +250,7 @@ export default async function AdminActivityPage({
                   <span><UserRound size={13} /> {log.actor?.name ?? "บัญชีที่ถูกลบ/ระบบ"}</span>
                   <code>{log.action}</code>
                 </div>
-                <ActivityDetails metadata={log.metadata} entityId={log.entityId} />
+                <ActivityDetails metadata={log.metadata} entityId={log.entityId} entityType={log.entityType} action={log.action} />
                 {href ? <Link className="button secondary" href={href}><ExternalLink size={14} /> เปิดหน้าที่เกี่ยวข้อง</Link> : null}
               </article>
             );

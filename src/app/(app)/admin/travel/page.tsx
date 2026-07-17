@@ -7,7 +7,6 @@ import {
   ClipboardCheck,
   Filter,
   Fuel,
-  Gauge,
   MapPin,
   ReceiptText,
   Route,
@@ -18,6 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminDetailModal } from "@/components/admin-detail-modal";
 import { ActionFeedbackForm } from "@/components/action-feedback-form";
 import { TravelRateModal } from "@/components/travel-rate-modal";
 import { ConfirmActionForm } from "@/components/confirm-action-form";
@@ -137,6 +137,94 @@ function TravelReviewActions({
         </ConfirmActionForm>
       ) : null}
     </div>
+  );
+}
+
+type TravelClaimDetailRecord = {
+  id: string;
+  status: string;
+  distanceKm: number;
+  ratePerKm: number | { toString(): string };
+  mileageAmount: number | { toString(): string };
+  kmPerLiter: number;
+  fuelPricePerLiter: number | { toString(): string };
+  fuelEstimate: number | { toString(): string };
+  odometerDistanceKm: number | null;
+  distanceVariancePercent: number | null;
+  tollAmount: number | { toString(): string };
+  parkingAmount: number | { toString(): string };
+  otherAmount: number | { toString(): string };
+  totalAmount: number | { toString(): string };
+  vehicleName: string | null;
+  vehicleLicensePlate: string | null;
+  adminNote: string | null;
+  overrideReason: string | null;
+  submittedAt: Date;
+  reviewedAt: Date | null;
+  paidAt: Date | null;
+  user: { name: string; email: string; role: string };
+  vehicle: { name: string; licensePlate: string | null } | null;
+  travelLeg: {
+    routeProvider: string;
+    distanceStatus: string;
+    destinationLabel: string | null;
+    fromProject: { name: string } | null;
+    toProject: { name: string; customerName: string } | null;
+  };
+};
+
+function TravelClaimDetailModal({ claim }: { claim: TravelClaimDetailRecord }) {
+  const origin = claim.travelLeg.fromProject?.name ?? "จุดก่อนหน้า";
+  const destination = claim.travelLeg.toProject?.name ?? claim.travelLeg.destinationLabel ?? "สำนักงาน";
+  return (
+    <AdminDetailModal
+      wide
+      eyebrow="Travel claim"
+      title={`${claim.user.name} · ${formatMoney(claim.totalAmount)}`}
+      subtitle={`${origin} → ${destination} · ส่ง ${formatDateTime(claim.submittedAt)}`}
+    >
+      <section className="admin-record-section">
+        <h3>ผู้เบิกและเส้นทาง</h3>
+        <div className="admin-record-grid">
+          <div><span>พนักงาน</span><strong>{claim.user.name}</strong><small>{roleLabels[claim.user.role]} · {claim.user.email}</small></div>
+          <div><span>ต้นทาง</span><strong>{origin}</strong><small>{claim.travelLeg.routeProvider}</small></div>
+          <div><span>ปลายทาง</span><strong>{destination}</strong><small>{claim.travelLeg.toProject?.customerName ?? "สำนักงาน/ปลายทางอื่น"}</small></div>
+          <div><span>รถ</span><strong>{claim.vehicleName ?? claim.vehicle?.name ?? "ใช้ค่าเริ่มต้น"}</strong><small>{claim.vehicleLicensePlate ?? claim.vehicle?.licensePlate ?? "ไม่ระบุทะเบียน"}</small></div>
+          <div><span>ระยะ GPS</span><strong>{formatNumber(claim.distanceKm, 2)} กม.</strong><small>{distanceStatusLabels[claim.travelLeg.distanceStatus] ?? claim.travelLeg.distanceStatus}</small></div>
+          <div><span>ระยะเลขไมล์</span><strong>{claim.odometerDistanceKm !== null ? `${formatNumber(claim.odometerDistanceKm, 2)} กม.` : "-"}</strong><small>{claim.distanceVariancePercent !== null ? `ต่าง ${formatNumber(claim.distanceVariancePercent, 1)}%` : "ไม่มีข้อมูลเปรียบเทียบ"}</small></div>
+        </div>
+      </section>
+
+      <section className="admin-record-section">
+        <h3>รายละเอียดการคำนวณ</h3>
+        <div className="admin-record-grid">
+          <div><span>ค่าชดเชย/กม.</span><strong>{formatMoney(claim.ratePerKm)}</strong></div>
+          <div><span>ค่าสึกหรอ/ไมล์</span><strong>{formatMoney(claim.mileageAmount)}</strong></div>
+          <div><span>อัตราสิ้นเปลือง</span><strong>{formatNumber(claim.kmPerLiter, 1)} กม./ลิตร</strong></div>
+          <div><span>ราคาน้ำมัน/ลิตร</span><strong>{formatMoney(claim.fuelPricePerLiter)}</strong></div>
+          <div><span>ค่าน้ำมันประมาณการ</span><strong>{formatMoney(claim.fuelEstimate)}</strong></div>
+          <div><span>ทางด่วน</span><strong>{formatMoney(claim.tollAmount)}</strong></div>
+          <div><span>ค่าจอดรถ</span><strong>{formatMoney(claim.parkingAmount)}</strong></div>
+          <div><span>ค่าใช้จ่ายอื่น</span><strong>{formatMoney(claim.otherAmount)}</strong></div>
+          <div className="admin-record-total"><span>ยอดรวม</span><strong>{formatMoney(claim.totalAmount)}</strong></div>
+        </div>
+      </section>
+
+      <section className="admin-record-section">
+        <h3>สถานะและหมายเหตุ</h3>
+        <div className="admin-record-grid">
+          <div><span>สถานะ</span><strong>{claimStatusLabels[claim.status] ?? claim.status}</strong></div>
+          <div><span>ตรวจเมื่อ</span><strong>{claim.reviewedAt ? formatDateTime(claim.reviewedAt) : "-"}</strong></div>
+          <div><span>จ่ายเมื่อ</span><strong>{claim.paidAt ? formatDateTime(claim.paidAt) : "-"}</strong></div>
+        </div>
+        {claim.overrideReason || claim.adminNote ? <p className="admin-record-copy">{claim.overrideReason ? `เหตุผลปรับยอด: ${claim.overrideReason}\n` : ""}{claim.adminNote ? `หมายเหตุแอดมิน: ${claim.adminNote}` : ""}</p> : null}
+      </section>
+
+      <section className="admin-record-section admin-record-actions">
+        <h3>จัดการรายการ</h3>
+        <TravelReviewActions claim={claim} compact />
+      </section>
+    </AdminDetailModal>
   );
 }
 
@@ -486,19 +574,11 @@ export default async function AdminTravelPage({
                           <Route size={14} />
                           {formatNumber(claim.distanceKm, 1)} กม.
                         </span>
-                        <span className="admin-travel-pill subtle">
-                          <Gauge size={14} />
-                          {formatNumber(claim.kmPerLiter, 1)} กม./ลิตร
-                        </span>
-                        {claim.distanceVariancePercent !== null ? (
-                          <div className="muted">ต่างจากเข็มไมล์ {formatNumber(claim.distanceVariancePercent, 1)}%</div>
-                        ) : null}
                       </td>
                       <td>
                         <strong>{formatMoney(claim.totalAmount)}</strong>
-                        <div className="muted">น้ำมัน {formatMoney(claim.fuelEstimate)}</div>
-                        <div className="muted">สึกหรอ {formatMoney(claim.mileageAmount)}</div>
-                        {claim.overrideReason ? <div className="admin-travel-override">Override: {claim.overrideReason}</div> : null}
+                        <div className="muted">ดูรายละเอียดค่าใช้จ่ายในรายการ</div>
+                        {claim.overrideReason ? <div className="admin-travel-override">มีการปรับยอด</div> : null}
                       </td>
                       <td>
                         <span className={`badge ${claimTone(claim.status)}`}>{claimStatusLabels[claim.status]}</span>
@@ -506,7 +586,7 @@ export default async function AdminTravelPage({
                         {claim.paidAt ? <div className="muted">จ่าย {formatDateTime(claim.paidAt)}</div> : null}
                       </td>
                       <td>
-                        <TravelReviewActions claim={claim} />
+                        <TravelClaimDetailModal claim={claim} />
                       </td>
                     </tr>
                   ))}
@@ -531,7 +611,7 @@ export default async function AdminTravelPage({
                       {formatNumber(claim.distanceKm, 1)} กม. · {distanceStatusLabels[claim.travelLeg.distanceStatus]}
                     </em>
                   </div>
-                  <TravelReviewActions claim={claim} compact />
+                  <TravelClaimDetailModal claim={claim} />
                 </article>
               ))}
             </div>

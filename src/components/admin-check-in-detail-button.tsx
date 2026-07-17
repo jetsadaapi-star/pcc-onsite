@@ -1,8 +1,10 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, ExternalLink, Gauge, ImageIcon, MapPin, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, Gauge, ImageIcon, MapPin, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import type { CheckInEvidenceItem } from "@/components/check-in-evidence-gallery";
+import { ConfirmActionForm } from "@/components/confirm-action-form";
+import { deleteCheckInAction } from "@/lib/actions";
 import { useDialogAccessibility } from "@/lib/use-dialog-accessibility";
 
 export type AdminCheckInDetail = {
@@ -138,6 +140,13 @@ export function AdminCheckInDetailButton({ detail }: { detail: AdminCheckInDetai
                       ))}
                     </div>
                   ) : <div className="checkin-detail-empty"><ImageIcon size={18} /> ไม่มีไฟล์หลักฐาน</div>}
+                </section>
+
+                <section className="checkin-detail-section">
+                  <h3>จัดการรายการ</h3>
+                  <ConfirmActionForm action={deleteCheckInAction} fields={{ id: detail.id }} message={`ยืนยันลบเช็กอินของ ${detail.user.name} ใช่หรือไม่? ข้อมูลการเดินทางและเคลมที่เกี่ยวข้องจะถูกลบด้วย`}>
+                    <button className="button danger" type="submit"><Trash2 size={15} /> ลบเช็กอิน</button>
+                  </ConfirmActionForm>
                 </section>
               </div>
             )}

@@ -4,9 +4,7 @@ import {
   Clock3,
   Filter,
   Gauge,
-  MapPin,
   Search,
-  Trash2,
   UserRound,
   XCircle
 } from "lucide-react";
@@ -14,8 +12,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@/generated/prisma/client";
 import { AdminCheckInDetailButton } from "@/components/admin-check-in-detail-button";
-import { ConfirmActionForm } from "@/components/confirm-action-form";
-import { deleteCheckInAction } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { bangkokDateRange, startOfCurrentBangkokDay } from "@/lib/bangkok-time";
 import { prisma } from "@/lib/db";
@@ -66,10 +62,6 @@ function pageNumbers(currentPage: number, totalPages: number) {
 
 function dateRangeFilter(from?: string, to?: string) {
   return bangkokDateRange(from, to) as Prisma.DateTimeFilter | undefined;
-}
-
-function googleMapsHref(latitude: number, longitude: number) {
-  return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
 }
 
 export default async function AdminCheckInsPage({
@@ -290,7 +282,7 @@ export default async function AdminCheckInsPage({
                 <th>สถานะ</th>
                 <th>งาน/หมายเหตุ</th>
                 <th>หลักฐาน</th>
-                <th>พิกัด</th>
+                <th>จัดการ</th>
               </tr>
             </thead>
             <tbody>
@@ -336,6 +328,9 @@ export default async function AdminCheckInsPage({
                     </td>
                     <td>
                       <span className={evidence.length ? "admin-checkins-proof ok" : "admin-checkins-proof"}>หลักฐาน {evidence.length} ไฟล์</span>
+                      {item.vehicle ? <div className="muted">{item.vehicle.name}{item.vehicle.licensePlate ? ` · ${item.vehicle.licensePlate}` : ""}</div> : null}
+                    </td>
+                    <td>
                       <AdminCheckInDetailButton detail={{
                         id: item.id,
                         checkedAt: formatDateTime(item.checkedAt),
@@ -357,22 +352,6 @@ export default async function AdminCheckInsPage({
                         odometerDistanceKm: item.odometerDistanceKm,
                         evidence
                       }} />
-                      {item.vehicle ? <div className="muted">{item.vehicle.name}{item.vehicle.licensePlate ? ` · ${item.vehicle.licensePlate}` : ""}</div> : null}
-                    </td>
-                    <td>
-                      <a
-                        className="admin-checkins-map-link"
-                        href={googleMapsHref(item.latitude, item.longitude)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <MapPin size={14} />
-                        {item.latitude.toFixed(5)}, {item.longitude.toFixed(5)}
-                      </a>
-                      {item.accuracy ? <div className="muted">±{Math.round(item.accuracy)}m</div> : null}
-                      <ConfirmActionForm action={deleteCheckInAction} fields={{ id: item.id }} message={`ยืนยันลบเช็กอินของ ${item.user.name} ใช่หรือไม่? ข้อมูลการเดินทางและเคลมที่เกี่ยวข้องจะถูกลบด้วย`}>
-                        <button className="button danger small" type="submit"><Trash2 size={14} /> ลบ</button>
-                      </ConfirmActionForm>
                     </td>
                   </tr>
                 );
@@ -424,18 +403,6 @@ export default async function AdminCheckInsPage({
                   odometerDistanceKm: item.odometerDistanceKm,
                   evidence
                 }} />
-                <a
-                  className="admin-checkins-map-link"
-                  href={googleMapsHref(item.latitude, item.longitude)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <MapPin size={14} />
-                  เปิดพิกัดในแผนที่
-                </a>
-                <ConfirmActionForm action={deleteCheckInAction} fields={{ id: item.id }} message={`ยืนยันลบเช็กอินของ ${item.user.name} ใช่หรือไม่? ข้อมูลการเดินทางและเคลมที่เกี่ยวข้องจะถูกลบด้วย`}>
-                  <button className="button danger" type="submit"><Trash2 size={15} /> ลบเช็กอิน</button>
-                </ConfirmActionForm>
               </article>
             );
           })}

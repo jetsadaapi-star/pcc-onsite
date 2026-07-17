@@ -13,6 +13,7 @@ import {
 import { redirect } from "next/navigation";
 import type { Prisma } from "@/generated/prisma/client";
 import { ActionFeedbackForm } from "@/components/action-feedback-form";
+import { AdminDetailModal } from "@/components/admin-detail-modal";
 import { ConfirmActionForm } from "@/components/confirm-action-form";
 import { deleteAnomalyAction } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
@@ -85,6 +86,99 @@ function metricText(value?: number | null, suffix = "") {
   return typeof value === "number" ? `${formatNumber(value)}${suffix}` : "-";
 }
 
+const anomalyDetailInclude = {
+  user: { select: { name: true, email: true } },
+  vehicle: { select: { name: true, licensePlate: true } },
+  checkIn: {
+    select: {
+      latitude: true,
+      longitude: true,
+      checkedAt: true,
+      project: { select: { code: true, name: true } }
+    }
+  },
+  travelLeg: {
+    select: {
+      distanceKm: true,
+      destinationLabel: true,
+      toProject: { select: { code: true, name: true } },
+      fromProject: { select: { code: true, name: true } }
+    }
+  },
+  fuelLog: {
+    select: {
+      fueledAt: true,
+      odometerKm: true,
+      liters: true
+    }
+  }
+} satisfies Prisma.AnomalyRecordInclude;
+
+type AnomalyDetailRecord = Prisma.AnomalyRecordGetPayload<{ include: typeof anomalyDetailInclude }>;
+
+function anomalyContext(item: AnomalyDetailRecord) {
+  if (item.checkIn?.project) return `${item.checkIn.project.code} ${item.checkIn.project.name}`;
+  if (item.travelLeg) {
+    return `${item.travelLeg.fromProject?.name ?? "ต้นทาง"} → ${item.travelLeg.toProject?.name ?? item.travelLeg.destinationLabel ?? "สำนักงาน"}`;
+  }
+  if (item.fuelLog) return `เติมน้ำมัน ${formatDateTime(item.fuelLog.fueledAt)}`;
+  return "-";
+}
+
+function AnomalyDetailModal({ item }: { item: AnomalyDetailRecord }) {
+  const mapHref = googleMapsHref(item.checkIn?.latitude, item.checkIn?.longitude);
+
+  return (
+    <AdminDetailModal
+      eyebrow={typeLabels[item.type] ?? item.type}
+      title={item.title}
+      subtitle={`${severityLabels[item.severity]} · ${statusLabels[item.status]}`}
+      wide
+    >
+      <section className="admin-record-section">
+        <h3>รายละเอียดเคส</h3>
+        <p className="admin-record-copy">{item.detail ?? "ไม่มีรายละเอียดเพิ่มเติม"}</p>
+        <div className="admin-record-grid">
+          <div><span>ค่าที่พบ</span><strong>{metricText(item.measuredValue)}</strong></div>
+          <div><span>ค่าอ้างอิง</span><strong>{metricText(item.expectedValue)}</strong></div>
+          <div><span>ระดับความเสี่ยง</span><strong>{severityLabels[item.severity]}</strong></div>
+          <div><span>สถานะ</span><strong>{statusLabels[item.status]}</strong></div>
+        </div>
+      </section>
+
+      <section className="admin-record-section">
+        <h3>ผู้เกี่ยวข้องและบริบท</h3>
+        <div className="admin-record-grid">
+          <div><span>พนักงาน</span><strong>{item.user?.name ?? "-"}</strong><small>{item.user?.email ?? ""}</small></div>
+          <div><span>รถ</span><strong>{item.vehicle?.name ?? "-"}</strong><small>{item.vehicle?.licensePlate ?? ""}</small></div>
+          <div><span>โครงการ/เส้นทาง</span><strong>{anomalyContext(item)}</strong></div>
+          <div><span>เวลาที่ตรวจพบ</span><strong>{formatDateTime(item.createdAt)}</strong></div>
+          {item.travelLeg ? <div><span>ระยะเดินทาง</span><strong>{metricText(item.travelLeg.distanceKm, " กม.")}</strong></div> : null}
+          {item.fuelLog ? <div><span>ข้อมูลเติมน้ำมัน</span><strong>{metricText(Number(item.fuelLog.liters), " ลิตร")}</strong><small>เลขไมล์ {metricText(item.fuelLog.odometerKm, " กม.")}</small></div> : null}
+          {item.checkIn ? <div><span>เวลาเช็กอิน</span><strong>{formatDateTime(item.checkIn.checkedAt)}</strong></div> : null}
+          {item.resolvedAt ? <div><span>เวลาปิดเคส</span><strong>{formatDateTime(item.resolvedAt)}</strong></div> : null}
+        </div>
+        {mapHref ? <a className="button secondary" href={mapHref} target="_blank" rel="noreferrer"><MapPin size={15} /> เปิดพิกัดใน Google Maps</a> : null}
+      </section>
+
+      <section className="admin-record-section">
+        <h3>จัดการรายการ</h3>
+        <div className="admin-record-actions">
+          {item.status === "OPEN" ? (
+            <ActionFeedbackForm action={resolveAnomalyFormAction}>
+              <input type="hidden" name="id" value={item.id} />
+              <button className="button primary" type="submit"><CheckCircle2 size={15} /> ปิดเคส</button>
+            </ActionFeedbackForm>
+          ) : <span className="status-pill success">ปิดเคสแล้ว</span>}
+          <ConfirmActionForm action={deleteAnomalyAction} fields={{ id: item.id }} message={`ยืนยันลบรายการผิดปกติ ${item.title} ใช่หรือไม่?`}>
+            <button className="button danger" type="submit"><Trash2 size={15} /> ลบรายการ</button>
+          </ConfirmActionForm>
+        </div>
+      </section>
+    </AdminDetailModal>
+  );
+}
+
 export default async function AdminAnomaliesPage({
   searchParams
 }: {
@@ -128,34 +222,7 @@ export default async function AdminAnomaliesPage({
       orderBy: [{ status: "asc" }, { severity: "desc" }, { createdAt: "desc" }],
       skip: (currentPage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-      include: {
-        user: { select: { name: true, email: true } },
-        vehicle: { select: { name: true, licensePlate: true } },
-        checkIn: {
-          select: {
-            latitude: true,
-            longitude: true,
-            checkedAt: true,
-            project: { select: { code: true, name: true } }
-          }
-        },
-        travelLeg: {
-          select: {
-            distanceKm: true,
-            destinationLabel: true,
-            toProject: { select: { code: true, name: true } },
-            fromProject: { select: { code: true, name: true } }
-          }
-        },
-        fuelLog: {
-          select: {
-            fueledAt: true,
-            odometerKm: true,
-            liters: true,
-            totalAmount: true
-          }
-        }
-      }
+      include: anomalyDetailInclude
     }),
     prisma.anomalyRecord.count({ where }),
     prisma.anomalyRecord.count({ where: { status: "OPEN" } }),
@@ -260,7 +327,6 @@ export default async function AdminAnomaliesPage({
                 <th>ประเภท</th>
                 <th>ผู้ใช้/รถ</th>
                 <th>บริบท</th>
-                <th>ค่าที่พบ</th>
                 <th>ระดับ</th>
                 <th>สถานะ</th>
                 <th>เวลา</th>
@@ -269,12 +335,7 @@ export default async function AdminAnomaliesPage({
             </thead>
             <tbody>
               {anomalies.map((item) => {
-                const mapHref = googleMapsHref(item.checkIn?.latitude, item.checkIn?.longitude);
-                const context =
-                  item.checkIn?.project ? `${item.checkIn.project.code} ${item.checkIn.project.name}` :
-                  item.travelLeg ? `${item.travelLeg.fromProject?.name ?? "ต้นทาง"} -> ${item.travelLeg.toProject?.name ?? item.travelLeg.destinationLabel ?? "สำนักงาน"}` :
-                  item.fuelLog ? `เติมน้ำมัน ${formatDateTime(item.fuelLog.fueledAt)}` :
-                  "-";
+                const context = anomalyContext(item);
 
                 return (
                   <tr key={item.id}>
@@ -288,34 +349,19 @@ export default async function AdminAnomaliesPage({
                     </td>
                     <td>
                       <span>{context}</span>
-                      {mapHref ? <a className="admin-checkins-map-link" href={mapHref} target="_blank" rel="noreferrer"><MapPin size={14} /> เปิดพิกัด</a> : null}
-                    </td>
-                    <td>
-                      <span>{metricText(item.measuredValue)}</span>
-                      <span className="admin-anomaly-detail">อ้างอิง {metricText(item.expectedValue)}</span>
                     </td>
                     <td><span className={`admin-anomaly-severity severity-${item.severity.toLowerCase()}`}>{severityLabels[item.severity]}</span></td>
                     <td><span className={`status-pill ${item.status === "OPEN" ? "warning" : "success"}`}>{statusLabels[item.status]}</span></td>
                     <td>{formatDateTime(item.createdAt)}</td>
                     <td>
-                      {item.status === "OPEN" ? (
-                        <ActionFeedbackForm action={resolveAnomalyFormAction}>
-                          <input type="hidden" name="id" value={item.id} />
-                          <button className="button secondary small" type="submit"><CheckCircle2 size={14} /> ปิดเคส</button>
-                        </ActionFeedbackForm>
-                      ) : (
-                        <span className="admin-anomaly-detail">{item.resolvedAt ? formatDateTime(item.resolvedAt) : "-"}</span>
-                      )}
-                      <ConfirmActionForm action={deleteAnomalyAction} fields={{ id: item.id }} message={`ยืนยันลบรายการผิดปกติ ${item.title} ใช่หรือไม่?`}>
-                        <button className="button danger small" type="submit"><Trash2 size={14} /> ลบ</button>
-                      </ConfirmActionForm>
+                      <AnomalyDetailModal item={item} />
                     </td>
                   </tr>
                 );
               })}
               {anomalies.length === 0 ? (
                 <tr>
-                  <td colSpan={8}>ยังไม่พบรายการผิดปกติตามตัวกรองนี้</td>
+                  <td colSpan={7}>ยังไม่พบรายการผิดปกติตามตัวกรองนี้</td>
                 </tr>
               ) : null}
             </tbody>
@@ -324,7 +370,6 @@ export default async function AdminAnomaliesPage({
 
         <div className="admin-checkins-mobile-list">
           {anomalies.map((item) => {
-            const mapHref = googleMapsHref(item.checkIn?.latitude, item.checkIn?.longitude);
             const context = item.checkIn?.project ? `${item.checkIn.project.code} ${item.checkIn.project.name}` : item.vehicle?.licensePlate ?? "-";
 
             return (
@@ -341,20 +386,9 @@ export default async function AdminAnomaliesPage({
                   <span>{context}</span>
                   <span>{formatDateTime(item.createdAt)}</span>
                 </div>
-                <p className="admin-anomaly-mobile-detail">{item.detail ?? `ค่าที่พบ ${metricText(item.measuredValue)} / อ้างอิง ${metricText(item.expectedValue)}`}</p>
                 <div className="admin-anomaly-mobile-actions">
-                  {mapHref ? <a className="button secondary" href={mapHref} target="_blank" rel="noreferrer"><MapPin size={15} /> เปิดพิกัด</a> : null}
-                  {item.status === "OPEN" ? (
-                    <ActionFeedbackForm action={resolveAnomalyFormAction}>
-                      <input type="hidden" name="id" value={item.id} />
-                      <button className="button primary" type="submit"><CheckCircle2 size={15} /> ปิดเคส</button>
-                    </ActionFeedbackForm>
-                  ) : (
-                    <span className="status-pill success">{statusLabels[item.status]}</span>
-                  )}
-                  <ConfirmActionForm action={deleteAnomalyAction} fields={{ id: item.id }} message={`ยืนยันลบรายการผิดปกติ ${item.title} ใช่หรือไม่?`}>
-                    <button className="button danger" type="submit"><Trash2 size={15} /> ลบ</button>
-                  </ConfirmActionForm>
+                  <span className={`status-pill ${item.status === "OPEN" ? "warning" : "success"}`}>{statusLabels[item.status]}</span>
+                  <AnomalyDetailModal item={item} />
                 </div>
               </article>
             );
