@@ -1,368 +1,210 @@
 import {
+  AlertTriangle,
   ArrowRight,
   BriefcaseBusiness,
+  Building2,
   Camera,
-  CarFront,
+  Check,
   CheckCircle2,
-  CircleAlert,
-  ClipboardCheck,
+  ChevronDown,
+  CircleHelp,
+  Clock3,
   Fuel,
   Gauge,
+  Home,
+  LocateFixed,
+  MapPinCheck,
   MapPinned,
   Navigation,
   ReceiptText,
   Route,
   ShieldCheck,
+  Smartphone,
   UserRound,
   Wrench
 } from "lucide-react";
 import Link from "next/link";
 
-const quickSteps = [
-  {
-    title: "เริ่มเดินทาง",
-    copy: "ครั้งแรกของวันให้ถ่ายเลขไมล์ต้นวัน จากนั้นเลือกจุดเริ่มจริงและปลายทาง",
-    icon: Navigation,
-    tone: "green"
-  },
-  {
-    title: "เช็คอินเมื่อถึงหน้างาน",
-    copy: "ดึง GPS เลือกโครงการ บันทึกวัตถุประสงค์และรูปงาน โดยไม่ต้องถ่ายเลขไมล์ซ้ำ",
-    icon: MapPinned,
-    tone: "blue"
-  },
-  {
-    title: "เช็คเอาท์เมื่อออกจากจุดนั้น",
-    copy: "กดเช็คเอาท์เมื่อจบงานที่ไซต์ หรือก่อนเดินทางไปไซต์ถัดไป เพื่อไม่ให้ระยะทางปนกัน",
-    icon: CheckCircle2,
-    tone: "red"
-  },
-  {
-    title: "เติมน้ำมัน",
-    copy: "ถ่ายบิลและหน้าปัดเลขไมล์ ระบบช่วย OCR ตัวเลข ลดการกรอกผิด",
-    icon: Fuel,
-    tone: "amber"
-  },
-  {
-    title: "จบการเดินทางวันนี้",
-    copy: "เมื่อเสร็จทุกจุดแล้ว ให้บันทึก GPS เลขไมล์ปลายวัน และรูปหน้าปัดอีกครั้ง",
-    icon: Gauge,
-    tone: "red"
-  }
-];
-
-const roleCards = [
-  {
-    role: "พนักงานภาคสนาม",
-    icon: UserRound,
-    points: ["เปิดรอบงานพร้อมเลขไมล์ต้นวัน", "เข้า/ออกแต่ละไซต์ด้วย GPS", "จบรอบพร้อมเลขไมล์ปลายวัน"]
-  },
-  {
-    role: "ผู้แทนขาย",
-    icon: BriefcaseBusiness,
-    points: ["เพิ่มหน้างานใหม่เมื่อพบลูกค้า", "บันทึกกิจกรรม เช่น ติดต่อ เสนอราคา เจรจา", "แนบรูปหรือพิกัดเพื่อให้ทีมต่อยอดได้"]
-  },
-  {
-    role: "วิศวกร",
-    icon: Wrench,
-    points: ["เพิ่มโครงการตอนสำรวจหน้างาน", "บันทึกผลสำรวจและหลักฐานพื้นที่", "เช็คเอาท์ก่อนย้ายไปไซต์ถัดไป"]
-  }
-];
-
-const doDont = [
-  {
-    title: "กดเช็คเอาท์ตอนไหน",
-    detail: "กดเมื่อออกจากหน้างานนั้น ไม่ต้องรอจบทั้งวัน ถ้าไปหลายไซต์ในวันเดียวให้เช็คเอาท์ทีละไซต์"
-  },
-  {
-    title: "ต้องเลือกปลายทางไหม",
-    detail: "ควรเลือกปลายทางก่อนเริ่มเดินทาง เพื่อให้ระบบรู้ว่าทริปนี้กำลังไปไหนและจับคู่ระยะทางได้ถูก"
-  },
-  {
-    title: "ออกจากบ้านไปไซต์เลยได้ไหม",
-    detail: "ได้ ให้เลือกจุดเริ่มเป็นตำแหน่งปัจจุบัน ระบบจะใช้ GPS จุดเริ่มต้นจริง ไม่จำเป็นต้องผ่านบริษัท"
-  },
-  {
-    title: "ต้องถ่ายเลขไมล์กี่ครั้ง",
-    detail: "ปกติ 2 ครั้งต่อรถต่อวัน: ตอนเปิดรอบงานและตอนจบการเดินทาง ส่วนเติมน้ำมันให้ถ่ายเพิ่มเฉพาะรายการนั้น"
-  }
-];
-
-const walkthroughFrames = [
-  {
-    step: "01",
-    eyebrow: "ก่อนออกเดินทาง",
-    title: "กด เริ่มเดินทาง",
-    copy: "เปิดหน้าแรก แล้วแตะปุ่มสีเขียวขนาดใหญ่ ระบบจะเตรียม GPS และข้อมูลรถของคุณให้อัตโนมัติ",
-    icon: Navigation,
-    tone: "green"
-  },
-  {
-    step: "02",
-    eyebrow: "ระบุต้นทางและปลายทาง",
-    title: "เลือกจุดที่ออกจริง",
-    copy: "เลือก บ้าน บริษัท หรือพิกัดปัจจุบัน จากนั้นค้นหาโครงการปลายทางแล้วตรวจชื่อให้ถูกต้อง",
-    icon: Route,
-    tone: "blue"
-  },
-  {
-    step: "03",
-    eyebrow: "เมื่อถึงพื้นที่",
-    title: "ดึง GPS และเช็คอิน",
-    copy: "ยืนในบริเวณหน้างาน เปิดตำแหน่งแบบแม่นยำ แล้วรอจนระบบแสดงว่ารับพิกัดสำเร็จ",
-    icon: MapPinned,
-    tone: "green"
-  },
-  {
-    step: "04",
-    eyebrow: "บันทึกงาน",
-    title: "เลือกกิจกรรมและถ่ายรูป",
-    copy: "ระบุว่าไปทำอะไร เขียนบันทึกสั้นๆ และถ่ายหลักฐานหลายรูปได้จากกล้องมือถือ",
-    icon: Camera,
-    tone: "blue"
-  },
-  {
-    step: "05",
-    eyebrow: "ก่อนออกจากไซต์",
-    title: "เช็คเอาท์หน้างาน",
-    copy: "ตรวจว่างานและรูปครบ แล้วกดเช็คเอาท์ก่อนเดินทางไปจุดถัดไป เพื่อแยกเวลาและระยะทางให้ถูกต้อง",
-    icon: CheckCircle2,
-    tone: "red"
-  },
-  {
-    step: "06",
-    eyebrow: "เมื่อเติมน้ำมัน",
-    title: "ถ่ายบิลและเลขไมล์",
-    copy: "ถ่ายภาพให้ชัด ตรวจตัวเลขที่ OCR อ่านได้ และแก้เฉพาะเมื่อไม่ตรงกับบิลหรือหน้าปัดจริง",
-    icon: Fuel,
-    tone: "amber"
-  },
-  {
-    step: "07",
-    eyebrow: "เมื่อเสร็จทุกจุด",
-    title: "จบการเดินทางวันนี้",
-    copy: "ดึง GPS กรอกเลขไมล์ปลายวัน และถ่ายหน้าปัด ระบบจะเทียบกับระยะ GPS รวมทุกช่วง",
-    icon: Gauge,
-    tone: "red"
-  }
-];
+const dayFlow = [
+  { number: "01", label: "เปิดรอบงาน", detail: "GPS + เลขไมล์ต้นวัน", icon: Gauge, tone: "teal" },
+  { number: "02", label: "เริ่มเดินทาง", detail: "เลือกต้นทางและปลายทาง", icon: Navigation, tone: "blue" },
+  { number: "03", label: "ถึงหน้างาน", detail: "GPS + กิจกรรม + รูปงาน", icon: MapPinned, tone: "green" },
+  { number: "04", label: "ออกจากไซต์", detail: "GPS + สรุปงาน", icon: MapPinCheck, tone: "red" },
+  { number: "05", label: "ไปจุดถัดไป", detail: "ทำซ้ำโดยไม่กรอกเลขไมล์", icon: Route, tone: "violet" },
+  { number: "06", label: "จบการเดินทาง", detail: "GPS + เลขไมล์ปลายวัน", icon: CheckCircle2, tone: "amber" }
+] as const;
 
 const detailedSteps = [
   {
     number: "01",
-    title: "เตรียมมือถือก่อนเริ่มงาน",
-    summary: "ทำครั้งแรกหรือเมื่อเปลี่ยนเครื่อง",
+    title: "เตรียมมือถือและรถก่อนเริ่มใช้",
+    summary: "ทำครั้งแรก หรือเมื่อติดตั้งบนเครื่องใหม่",
     icon: ShieldCheck,
     tone: "blue",
-    actions: [
-      "เข้าสู่ระบบด้วยบัญชีของตนเอง และตรวจชื่อกับบทบาทที่แถบบน",
-      "อนุญาตให้เบราว์เซอร์ใช้ตำแหน่ง และเลือกตำแหน่งแบบแม่นยำ",
-      "เปิดกล้องเมื่อระบบขอสิทธิ์ เพื่อถ่ายรูปหน้างาน บิล และหน้าปัดเลขไมล์",
-      "ตรวจหน้า รถของฉัน ว่าทะเบียนและรถคันหลักถูกต้อง หากไม่ถูกให้แจ้งผู้ดูแล"
+    points: [
+      "เข้าสู่ระบบด้วยบัญชีของตนเอง และตรวจชื่อกับบทบาทที่ด้านบน",
+      "อนุญาตตำแหน่งแบบแม่นยำและสิทธิ์กล้องเมื่อเบราว์เซอร์ถาม",
+      "เปิดหน้า รถของฉัน ตรวจทะเบียนและสถานะอนุมัติของรถคันหลัก",
+      "หากรถยังไม่พร้อมใช้งาน ให้เพิ่มรถแล้วรอแอดมินกำหนดอัตราสิ้นเปลือง"
     ],
-    result: "พร้อมใช้เมื่อ GPS และกล้องได้รับอนุญาต และระบบแสดงรถของคุณถูกคัน"
+    success: "หน้า Dashboard แสดงปุ่มเริ่มงาน และระบบพบรถของคุณ",
+    href: "/vehicles",
+    action: "ตรวจรถของฉัน"
   },
   {
     number: "02",
-    title: "เริ่มเดินทางจากจุดที่ออกจริง",
-    summary: "ครั้งแรกเปิดรอบงาน ครั้งถัดไปเลือกปลายทางได้เลย",
-    icon: Navigation,
-    tone: "green",
-    actions: [
-      "กด เริ่มเดินทาง จากหน้าแรกหรือหน้าเช็คอิน",
-      "เลือกต้นทาง: บ้าน บริษัท หน้างานเดิม หรือใช้พิกัดปัจจุบันตามสถานการณ์จริง",
-      "หากเป็นการเดินทางครั้งแรกของวัน ให้กรอกและถ่ายเลขไมล์ต้นวัน ระบบจะไม่ถามซ้ำในไซต์ถัดไป",
-      "ค้นหาและเลือกโครงการหรือหน้างานปลายทาง หากยังไม่มีให้กดเพิ่มหน้างานใหม่",
-      "ตรวจชื่อปลายทางและพิกัดบนหน้าสรุป แล้วกดยืนยันเริ่มเดินทาง"
+    title: "เปิดรอบงานภาคสนามครั้งแรกของวัน",
+    summary: "เลขไมล์บันทึกตอนนี้เพียงครั้งเดียว",
+    icon: Gauge,
+    tone: "teal",
+    points: [
+      "กด เริ่มงานภาคสนาม จากหน้าแรก",
+      "เลือกต้นทางจริง: บ้าน บริษัท ตำแหน่งปัจจุบัน หรือหน้างานเดิม",
+      "กรอกเลขไมล์ต้นวันและถ่ายหน้าปัดให้เห็นตัวเลขครบ",
+      "เลือกปลายทางแรก แล้วตรวจชื่อโครงการก่อนกดเริ่มเดินทาง"
     ],
-    result: "หน้าจอจะแสดงทริปที่กำลังเดินทาง เวลาเริ่ม และปลายทางที่เลือก"
+    success: "ระบบแสดงรอบงานกำลังเปิด พร้อมรถและเลขไมล์ต้นวัน",
+    href: "/check-in",
+    action: "ไปหน้าเริ่มงาน"
   },
   {
     number: "03",
-    title: "เช็คอินเมื่อถึงหน้างาน",
-    summary: "กดเมื่ออยู่ในพื้นที่จริง ไม่ควรกดระหว่างทาง",
+    title: "บันทึกเมื่อถึงหน้างาน",
+    summary: "ยืนในพื้นที่จริงและรอ GPS พร้อม",
     icon: MapPinned,
     tone: "green",
-    actions: [
-      "จอดรถหรือยืนในจุดที่รับสัญญาณ GPS ได้ชัด",
-      "กด ดึงตำแหน่งปัจจุบัน และรอข้อความยืนยันว่ารับพิกัดสำเร็จ",
-      "ตรวจโครงการที่ระบบเลือก ถ้าไม่ตรงให้ค้นหาและเปลี่ยนก่อนบันทึก",
-      "เลือกวัตถุประสงค์ เช่น พบลูกค้า สำรวจ ตรวจงาน ส่งมอบ หรือกิจกรรมอื่น",
-      "ใส่บันทึกที่ช่วยให้ทีมเข้าใจว่าเข้าพบใคร ทำอะไร และมีผลอย่างไร"
+    points: [
+      "เมื่อถึงปลายทาง ให้เปิดหน้าเช็คอินและรอระบบดึง GPS",
+      "ตรวจชื่อโครงการ หากไม่ตรงอย่าฝืนบันทึก ให้ยกเลิกทริปที่เริ่มผิด",
+      "เลือกวัตถุประสงค์ เช่น สำรวจ พบลูกค้า ตรวจงาน หรือติดตั้ง",
+      "เขียนผลการเข้าพบสั้น ๆ และถ่ายรูปพื้นที่หรือผลงานได้หลายรูป",
+      "ไม่ต้องกรอกหรือถ่ายเลขไมล์ในขั้นตอนนี้"
     ],
-    result: "ระบบแสดงสถานะกำลังทำงานที่ไซต์ พร้อมเวลาเช็คอินและชื่อโครงการ"
+    success: "Dashboard แสดงชื่อไซต์และสถานะกำลังเปิดงาน",
+    href: "/check-in",
+    action: "ไปหน้าเช็คอิน"
   },
   {
     number: "04",
-    title: "แนบหลักฐานให้ตรวจสอบง่าย",
-    summary: "รูปที่ดีช่วยลดการโทรถามและการตีกลับรายการ",
-    icon: Camera,
-    tone: "blue",
-    actions: [
-      "กดปุ่มกล้องเพื่อถ่ายรูปใหม่ได้ทันที และเพิ่มได้หลายรูป",
-      "ถ่ายภาพกว้างให้เห็นสถานที่ แล้วถ่ายรายละเอียดงานหรือจุดติดตั้งเพิ่มเติม",
-      "ตรวจภาพตัวอย่างก่อนส่ง ลบรูปเบลอหรือรูปที่เลือกผิด"
+    title: "ออกจากหน้างานให้ถูกจังหวะ",
+    summary: "กดเมื่อออกจากไซต์นั้น ไม่ใช่ตอนจบวัน",
+    icon: MapPinCheck,
+    tone: "red",
+    points: [
+      "ตรวจว่ารูปและบันทึกงานครบก่อนออกจากพื้นที่",
+      "กด ออกจากหน้างาน แล้วเลือกสถานะผลลัพธ์ของงาน",
+      "เขียนสิ่งที่ต้องติดตาม หรือปัญหาที่ทีมควรรู้",
+      "ยืนยัน GPS ตอนออก โดยไม่ต้องบันทึกเลขไมล์",
+      "ถ้าจะไปอีกไซต์ ให้เริ่มช่วงเดินทางใหม่จากจุดนี้"
     ],
-    result: "รายการเช็คอินมีรูปสถานที่และหลักฐานที่เปิดดูย้อนหลังได้"
+    success: "รายการมีเวลาเข้าและออกครบ พร้อมเริ่มปลายทางถัดไป",
+    href: "/check-in",
+    action: "ดูสถานะงานปัจจุบัน"
   },
   {
     number: "05",
-    title: "เช็คเอาท์เมื่อออกจากไซต์",
-    summary: "หนึ่งไซต์ควรมีหนึ่งรอบเช็คอินและเช็คเอาท์",
-    icon: CheckCircle2,
-    tone: "red",
-    actions: [
-      "ตรวจว่าบันทึกกิจกรรมและรูปหลักฐานครบก่อนออกจากพื้นที่",
-      "กด ออกจากหน้างาน และยืนยันในหน้าต่างแจ้งเตือน โดยไม่ต้องกรอกเลขไมล์",
-      "หากไปไซต์ถัดไป ให้เริ่มเดินทางใหม่โดยใช้ไซต์ปัจจุบันเป็นต้นทาง",
-      "หากเริ่มทริปผิด ให้ใช้ยกเลิกทริปและระบุเหตุผล ไม่ควรปล่อยทริปค้าง"
+    title: "บันทึกการเติมน้ำมัน",
+    summary: "ทำทันทีหลังเติมเพื่อให้หลักฐานต่อเนื่อง",
+    icon: Fuel,
+    tone: "amber",
+    points: [
+      "เปิดเมนู เติมน้ำมัน ระบบจะเลือกรถของคุณอัตโนมัติ",
+      "ถ่ายบิลให้เห็นวันที่ ปั๊ม ลิตร ราคาต่อลิตร และยอดรวม",
+      "ถ่ายหน้าปัดเลขไมล์ในเวลาใกล้กับบิล",
+      "ตรวจค่าจาก OCR กับภาพจริง และแก้เฉพาะตัวเลขที่อ่านผิด",
+      "แนบรูปได้หลายรูปเมื่อบิลยาวหรือข้อมูลอยู่คนละด้าน"
     ],
-    result: "ระบบปิดเวลาทำงานของไซต์ และพร้อมสร้างช่วงเดินทางถัดไปโดยไม่ปนกัน"
+    success: "รายการเติมน้ำมันแสดงบิล รูปเลขไมล์ และยอดครบ",
+    href: "/fuel",
+    action: "บันทึกเติมน้ำมัน"
   },
   {
     number: "06",
-    title: "บันทึกการเติมน้ำมัน",
-    summary: "กรอกทันทีหลังเติมเพื่อให้เลขไมล์ต่อเนื่อง",
-    icon: Fuel,
-    tone: "amber",
-    actions: [
-      "เปิดเมนู เติมน้ำมัน ระบบจะเลือกรถของคุณให้อัตโนมัติ",
-      "ถ่ายรูปบิลให้เห็นวันที่ ปั๊ม จำนวนลิตร ราคาต่อลิตร และยอดรวม",
-      "ถ่ายรูปหน้าปัดเลขไมล์ในช่วงเวลาเดียวกัน",
-      "ตรวจค่าที่ OCR อ่านได้เทียบกับภาพจริง แล้วแก้เฉพาะช่องที่อ่านผิด",
-      "กดบันทึกและตรวจสถานะรายการในหน้ารายงานของฉัน"
-    ],
-    result: "รายการเติมน้ำมันมีบิล เลขไมล์ และข้อมูลครบสำหรับคำนวณ กม./ลิตรจริง"
-  },
-  {
-    number: "07",
-    title: "จบการเดินทางเมื่อเสร็จทั้งวัน",
-    summary: "บันทึกเลขไมล์ปลายวันเพียงครั้งเดียว",
-    icon: Gauge,
-    tone: "red",
-    actions: [
-      "ตรวจว่าออกจากหน้างานและปิดช่วงเดินทางล่าสุดแล้ว",
-      "เปิดหน้าเช็คอิน แล้วเลือก จบการเดินทางวันนี้",
-      "ดึง GPS กรอกเลขไมล์สิ้นสุด และถ่ายรูปหน้าปัดให้ชัด",
-      "ตรวจระยะจากเลขไมล์กับระยะ GPS รวม หากต่างมากให้ใส่หมายเหตุ"
-    ],
-    result: "รอบงานวันนี้ถูกปิด และข้อมูลพร้อมตรวจสอบโดยไม่ต้องมีเลขไมล์ทุกไซต์"
-  },
-  {
-    number: "08",
-    title: "ตรวจรายงานก่อนสิ้นเดือน",
-    summary: "ช่วยแก้ข้อมูลได้ทันก่อนส่งให้ฝ่ายบัญชี",
-    icon: ReceiptText,
+    title: "จบการเดินทางเมื่อเสร็จทุกจุด",
+    summary: "เลขไมล์ปลายวันบันทึกเพียงครั้งเดียว",
+    icon: CheckCircle2,
     tone: "violet",
-    actions: [
-      "เปิด รายงานของฉัน แล้วเลือกช่วงวันที่ที่ต้องการตรวจ",
-      "ดูทริปที่ระยะทางผิดปกติ รายการที่รอตรวจ และหลักฐานที่ยังไม่ครบ",
-      "เทียบระยะ GPS กับเลขไมล์ หากต่างกันมากให้เพิ่มคำอธิบายหรือแจ้งผู้ดูแล",
-      "ตรวจยอดค่าเดินทางและค่าน้ำมันก่อนรอบอนุมัติ"
+    points: [
+      "ออกจากหน้างานล่าสุด และปิดช่วงเดินทางที่ยังค้างก่อน",
+      "เปิดหน้าเช็คอิน แล้วขยายหัวข้อ จบการเดินทางวันนี้",
+      "ดึง GPS กรอกเลขไมล์สิ้นสุด และถ่ายรูปหน้าปัด",
+      "ใส่หมายเหตุหากอ้อมทาง ใช้รถส่วนตัว หรือระยะต่างจาก GPS มาก",
+      "ยืนยันจบวัน ระบบจะรวมทุกช่วงและตรวจความผิดปกติให้"
     ],
-    result: "ข้อมูลพร้อมให้แอดมินตรวจ อนุมัติ และส่งออกเอกสารบัญชี"
+    success: "รอบงานปิดแล้ว และ Dashboard พร้อมเริ่มวันใหม่",
+    href: "/check-in",
+    action: "ไปหน้าจบการเดินทาง"
   }
-];
+] as const;
 
-function AnimatedWalkthrough() {
+const roles = [
+  {
+    id: "field",
+    title: "พนักงานภาคสนาม",
+    icon: UserRound,
+    tone: "teal",
+    points: ["เปิดและปิดรอบงานทุกวันที่ใช้รถ", "เข้า–ออกไซต์ตามพื้นที่จริง", "ถ่ายผลงานและปัญหาที่พบ"]
+  },
+  {
+    id: "sales",
+    title: "ผู้แทนขาย",
+    icon: BriefcaseBusiness,
+    tone: "blue",
+    points: ["เพิ่มลูกค้าหรือหน้างานใหม่ได้เอง", "เลือกกิจกรรมพบลูกค้าและติดตามงาน", "อัปเดตสถานะโครงการหลังเข้าพบ"]
+  },
+  {
+    id: "engineer",
+    title: "วิศวกร",
+    icon: Wrench,
+    tone: "amber",
+    points: ["เพิ่มไซต์ตอนเข้าสำรวจ", "แนบรูปพื้นที่และจุดติดตั้งหลายรูป", "บันทึกผลสำรวจเพื่อให้ฝ่ายขายต่อยอด"]
+  }
+] as const;
+
+const troubleshooting = [
+  {
+    title: "GPS ไม่ขึ้นหรือคลาดเคลื่อนมาก",
+    answer: "เปิด Location ของมือถือ อนุญาตตำแหน่งแบบแม่นยำ ออกไปอยู่บริเวณเปิด แล้วกดอัปเดต GPS อีกครั้ง หากยังไม่ได้ให้ปิดและเปิดเบราว์เซอร์ใหม่"
+  },
+  {
+    title: "เลือกปลายทางหรือเริ่มทริปผิด",
+    answer: "กดยกเลิกทริปก่อนเช็คอินและระบุเหตุผล จากนั้นเริ่มช่วงเดินทางใหม่ ห้ามสร้างเช็คอินซ้ำเพื่อกลบรายการเดิม"
+  },
+  {
+    title: "ลืมออกจากหน้างาน",
+    answer: "กลับไปหน้าเช็คอินและบันทึกเวลาออกทันที พร้อมใส่หมายเหตุอธิบาย หากพิกัดห่างจากไซต์ ระบบจะส่งให้แอดมินตรวจสอบ"
+  },
+  {
+    title: "ลืมจบการเดินทางเมื่อวาน",
+    answer: "อย่าเปิดรอบใหม่ ให้จบรอบเดิมด้วยเลขไมล์ปัจจุบันและใส่หมายเหตุวันที่ลืม ระบบจะเก็บความต่างไว้ให้แอดมินตรวจ"
+  },
+  {
+    title: "OCR อ่านเลขไมล์หรือบิลผิด",
+    answer: "ตรวจภาพต้นฉบับแล้วแก้ค่าก่อนบันทึก ถ้าภาพเบลอให้ถ่ายใหม่ โดยต้องเก็บรูปจริงไว้เป็นหลักฐานทุกครั้ง"
+  }
+] as const;
+
+function PhonePreview() {
   return (
-    <section className="guide-walkthrough-card">
-      <div className="guide-walkthrough-copy">
-        <span className="guide-kicker"><Camera size={15} /> ตัวอย่างเคลื่อนไหว</span>
-        <h2>ดูภาพรวมการใช้งานใน 30 วินาที</h2>
-        <p>ตัวอย่างจะเล่นวนอัตโนมัติจากเริ่มเดินทางจนถึงบันทึกน้ำมัน หยุดอ่านรายละเอียดด้านล่างได้ทุกขั้น</p>
-        <div className="guide-demo-legend">
-          {walkthroughFrames.map((frame) => (
-            <span key={frame.step}><b>{frame.step}</b>{frame.title}</span>
-          ))}
+    <div className="manual-phone" aria-label="ตัวอย่างหน้าจอมือถือ PCC OnSite">
+      <div className="manual-phone-bar"><span /><strong>PCC OnSite</strong><em>วิศวกร</em></div>
+      <div className="manual-phone-body">
+        <div className="manual-phone-status"><small>รอบงานวันนี้</small><strong>พร้อมเดินทางไปจุดถัดไป</strong><span><Check size={14} /> กำลังเปิด</span></div>
+        <div className="manual-phone-action">
+          <span><Navigation size={28} /></span>
+          <div><strong>เริ่มช่วงการเดินทาง</strong><small>เลือกต้นทางและปลายทาง</small></div>
+          <ArrowRight size={17} />
         </div>
-      </div>
-
-      <div className="guide-demo-phone" aria-label="ตัวอย่างขั้นตอนการใช้งานแบบเคลื่อนไหว">
-        <div className="guide-demo-topbar">
-          <span />
-          <strong>PCC OnSite</strong>
-          <em>คู่มือ</em>
+        <div className="manual-phone-metrics">
+          <div><Route size={16} /><small>GPS วันนี้</small><strong>42.8 กม.</strong></div>
+          <div><Gauge size={16} /><small>เลขไมล์ต้นวัน</small><strong>45,210.5</strong></div>
         </div>
-        <div className="guide-demo-stage">
-          {walkthroughFrames.map((frame) => {
-            const Icon = frame.icon;
-            return (
-              <div className={`guide-demo-frame tone-${frame.tone}`} key={frame.step}>
-                <div className="guide-demo-count">ขั้นที่ {frame.step}</div>
-                <span className="guide-demo-icon"><Icon size={34} /></span>
-                <small>{frame.eyebrow}</small>
-                <strong>{frame.title}</strong>
-                <p>{frame.copy}</p>
-                <div className="guide-demo-button">แตะเพื่อดำเนินการ <ArrowRight size={16} /></div>
-              </div>
-            );
-          })}
+        <div className="manual-phone-timeline">
+          <strong>ลำดับวันนี้</strong>
+          <div><i className="done" /><span><b>บริษัท → โครงการ A</b><small>ถึงหน้างานแล้ว</small></span></div>
+          <div><i className="active" /><span><b>โครงการ A</b><small>กำลังเปิดงาน</small></span></div>
+          <div><i /><span><b>จุดถัดไป</b><small>รอเริ่มเดินทาง</small></span></div>
         </div>
-        <div className="guide-demo-progress" aria-hidden="true">
-          {walkthroughFrames.map((frame) => <i key={frame.step} />)}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function PhoneMockup() {
-  return (
-    <div className="guide-phone" aria-label="ตัวอย่างหน้าจอมือถือ">
-      <div className="guide-phone-top">
-        <span />
-        <strong>PCC OnSite</strong>
-        <em>วิศวกร</em>
-      </div>
-      <div className="guide-phone-body">
-        <div className="guide-phone-hero">
-          <small>พร้อมออกหน้างานวันนี้</small>
-          <strong>เริ่มจากปุ่มหลัก</strong>
-        </div>
-        <div className="guide-phone-main-action">
-          <span><MapPinned size={30} /></span>
-          <strong>เริ่มเดินทาง</strong>
-          <small>เลือกต้นทาง ปลายทาง และเริ่มคำนวณระยะทาง</small>
-        </div>
-        <div className="guide-phone-grid">
-          <div>
-            <Fuel size={20} />
-            <strong>เติมน้ำมัน</strong>
-          </div>
-          <div>
-            <BriefcaseBusiness size={20} />
-            <strong>เพิ่มหน้างาน</strong>
-          </div>
-        </div>
-        <div className="guide-phone-list">
-          <span><Gauge size={16} /> ระยะทางวันนี้ 42.8 กม.</span>
-          <span><ReceiptText size={16} /> รออนุมัติ 1 รายการ</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StepMockup() {
-  return (
-    <div className="guide-step-visual" aria-label="ตัวอย่างขั้นตอนเช็คอิน">
-      <div className="guide-step-screen active">
-        <span><Navigation size={18} /></span>
-        <strong>เริ่มเดินทาง</strong>
-        <small>เลือกต้นทางและปลายทาง</small>
-      </div>
-      <ArrowRight size={18} />
-      <div className="guide-step-screen">
-        <span><Camera size={18} /></span>
-        <strong>ถ่ายหลักฐาน</strong>
-        <small>ไซต์ เลขไมล์ หรือบิล</small>
-      </div>
-      <ArrowRight size={18} />
-      <div className="guide-step-screen done">
-        <span><ShieldCheck size={18} /></span>
-        <strong>ส่งให้ตรวจ</strong>
-        <small>รอแอดมินอนุมัติ</small>
       </div>
     </div>
   );
@@ -370,188 +212,119 @@ function StepMockup() {
 
 export default function GuidePage() {
   return (
-    <div className="content-stack guide-page">
-      <section className="guide-hero">
-        <div className="guide-hero-copy">
-          <span className="hero-label">
-            <ClipboardCheck size={15} />
-            Mobile Field Guide
-          </span>
-          <h1>วิธีใช้งาน PCC OnSite สำหรับหน้างาน</h1>
-          <p>คู่มือสั้นสำหรับพนักงาน ผู้แทนขาย และวิศวกรที่ใช้มือถือเป็นหลัก ตั้งแต่เริ่มเดินทาง เช็คอิน เติมน้ำมัน เพิ่มหน้างาน จนถึงดูรายงาน</p>
-          <div className="guide-hero-actions">
-            <Link className="button success" href="/check-in">
-              <MapPinned size={17} />
-              ไปหน้าเช็คอิน
-            </Link>
-            <Link className="button secondary" href="/dashboard">
-              <Gauge size={17} />
-              กลับหน้าแรก
-            </Link>
+    <div className="manual-page">
+      <section className="manual-hero">
+        <div className="manual-hero-copy">
+          <span className="manual-kicker"><Smartphone size={15} /> คู่มือสำหรับผู้ใช้งานภาคสนาม</span>
+          <h1>ออกหน้างานให้ครบทุกขั้น<br />โดยไม่ต้องจำเอง</h1>
+          <p>ตั้งแต่เปิดรอบงาน เลือกปลายทาง เช็คอิน เติมน้ำมัน จนถึงปิดเลขไมล์ปลายวัน ออกแบบให้ทำตามได้จากมือถือทีละขั้น</p>
+          <div className="manual-hero-actions">
+            <Link className="button success" href="/dashboard"><Navigation size={17} /> เริ่มใช้งานจริง</Link>
+            <a className="button secondary" href="#daily-flow"><Route size={17} /> ดู Flow ทั้งวัน</a>
+          </div>
+          <div className="manual-key-rule">
+            <Gauge size={21} />
+            <div><strong>เลขไมล์ปกติวันละ 2 ครั้ง</strong><span>ต้นวัน 1 ครั้ง · ปลายวัน 1 ครั้ง · เช็คอินแต่ละไซต์ใช้ GPS</span></div>
           </div>
         </div>
-        <PhoneMockup />
+        <PhonePreview />
       </section>
 
-      <section className="guide-quick-grid">
-        {quickSteps.map((step, index) => {
-          const Icon = step.icon;
-          return (
-            <article className={`guide-quick-card tone-${step.tone}`} key={step.title}>
-              <div className="guide-step-number">{index + 1}</div>
-              <span><Icon size={22} /></span>
-              <h2>{step.title}</h2>
-              <p>{step.copy}</p>
-            </article>
-          );
-        })}
-      </section>
+      <nav className="manual-nav" aria-label="หัวข้อคู่มือ">
+        <a href="#daily-flow"><Route size={15} /> Flow ทั้งวัน</a>
+        <a href="#steps"><CheckCircle2 size={15} /> วิธีใช้งาน</a>
+        <a href="#roles"><UserRound size={15} /> ตามบทบาท</a>
+        <a href="#help"><CircleHelp size={15} /> แก้ปัญหา</a>
+      </nav>
 
-      <AnimatedWalkthrough />
-
-      <section className="guide-detailed-section">
-        <div className="guide-section-heading">
-          <span><ClipboardCheck size={20} /></span>
-          <div>
-            <small>STEP BY STEP</small>
-            <h2>วิธีใช้งานแบบละเอียดทีละขั้น</h2>
-            <p>ทำตามลำดับตั้งแต่เตรียมมือถือ เริ่มเดินทาง เช็คอิน เก็บหลักฐาน จนถึงตรวจรายงาน</p>
-          </div>
+      <section className="manual-section" id="daily-flow">
+        <div className="manual-section-heading">
+          <span>ภาพรวม 1 วัน</span>
+          <h2>ทำตามลำดับนี้ ข้อมูลระยะทางจะไม่ปนกัน</h2>
+          <p>ถ้าไปหลายไซต์ ให้วนขั้นที่ 2–5 แล้วจบการเดินทางเพียงครั้งเดียวเมื่อเสร็จทั้งวัน</p>
         </div>
-
-        <nav className="guide-step-jumps" aria-label="ไปยังขั้นตอนในคู่มือ">
-          {detailedSteps.map((step) => (
-            <a href={`#guide-step-${step.number}`} key={step.number}>
-              <b>{step.number}</b>
-              <span>{step.title}</span>
-            </a>
-          ))}
-        </nav>
-
-        <div className="guide-detailed-list">
-          {detailedSteps.map((step) => {
+        <div className="manual-flow-grid">
+          {dayFlow.map((step) => {
             const Icon = step.icon;
             return (
-              <article className={`guide-detail-step tone-${step.tone}`} id={`guide-step-${step.number}`} key={step.number}>
-                <div className="guide-detail-head">
-                  <div className="guide-detail-number">{step.number}</div>
-                  <span className="guide-detail-icon"><Icon size={24} /></span>
-                  <div>
-                    <small>{step.summary}</small>
-                    <h3>{step.title}</h3>
-                  </div>
+              <article className={`manual-flow-step tone-${step.tone}`} key={step.number}>
+                <div><span>{step.number}</span><Icon size={20} /></div>
+                <strong>{step.label}</strong>
+                <small>{step.detail}</small>
+              </article>
+            );
+          })}
+        </div>
+        <div className="manual-journey-line">
+          <Home size={17} /><span>บ้าน</span><i /><Building2 size={17} /><span>บริษัท</span><i /><MapPinned size={17} /><span>ไซต์ A</span><i /><MapPinned size={17} /><span>ไซต์ B</span>
+        </div>
+      </section>
+
+      <section className="manual-section manual-steps-section" id="steps">
+        <div className="manual-section-heading inline">
+          <div><span>ขั้นตอนละเอียด</span><h2>เปิดอ่านเฉพาะขั้นที่กำลังทำ</h2><p>ทุกขั้นมีจุดตรวจว่าสำเร็จและลิงก์ไปหน้าที่เกี่ยวข้อง</p></div>
+          <Link href="/check-in" className="manual-heading-link">เปิดหน้าเช็คอิน <ArrowRight size={15} /></Link>
+        </div>
+        <div className="manual-step-list">
+          {detailedSteps.map((step, index) => {
+            const Icon = step.icon;
+            return (
+              <details className={`manual-step tone-${step.tone}`} key={step.number} open={index === 0}>
+                <summary>
+                  <span className="manual-step-number">{step.number}</span>
+                  <span className="manual-step-icon"><Icon size={20} /></span>
+                  <span className="manual-step-title"><strong>{step.title}</strong><small>{step.summary}</small></span>
+                  <ChevronDown className="manual-step-chevron" size={19} />
+                </summary>
+                <div className="manual-step-content">
+                  <ol>{step.points.map((point) => <li key={point}>{point}</li>)}</ol>
+                  <div className="manual-success"><CheckCircle2 size={17} /><span><strong>ตรวจว่าสำเร็จ</strong>{step.success}</span></div>
+                  <Link href={step.href}>{step.action} <ArrowRight size={15} /></Link>
                 </div>
-                <ol className="guide-action-list">
-                  {step.actions.map((action) => <li key={action}>{action}</li>)}
-                </ol>
-                <div className="guide-result-box">
-                  <CheckCircle2 size={17} />
-                  <p><strong>ตรวจว่าสำเร็จ:</strong> {step.result}</p>
-                </div>
+              </details>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="manual-section" id="roles">
+        <div className="manual-section-heading"><span>เลือกตามบทบาท</span><h2>แต่ละคนเน้นบันทึกไม่เหมือนกัน</h2><p>ทุกบทบาทใช้ Flow การเดินทางเดียวกัน แต่รายละเอียดงานควรตรงกับหน้าที่จริง</p></div>
+        <div className="manual-role-grid">
+          {roles.map((role) => {
+            const Icon = role.icon;
+            return (
+              <article className={`manual-role tone-${role.tone}`} id={role.id} key={role.id}>
+                <span><Icon size={22} /></span><h3>{role.title}</h3>
+                <ul>{role.points.map((point) => <li key={point}><Check size={14} /> {point}</li>)}</ul>
               </article>
             );
           })}
         </div>
       </section>
 
-      <section className="guide-warning-strip">
-        <span><CircleAlert size={22} /></span>
-        <div>
-          <strong>ข้อมูลผิด อย่าบันทึกซ้ำเพื่อแก้รายการเดิม</strong>
-          <p>หากเลือกไซต์ผิด ลืมเช็คเอาท์ เลขไมล์ผิด หรือรูปไม่ครบ ให้ยกเลิกรายการที่ระบบอนุญาตพร้อมใส่เหตุผล หรือแจ้งแอดมินตรวจแก้เพื่อให้ประวัติย้อนหลังชัดเจน</p>
-        </div>
+      <section className="manual-evidence-band">
+        <div><Camera size={24} /><span><strong>รูปหน้างาน</strong><small>ภาพกว้าง + รายละเอียดงาน</small></span></div>
+        <div><ReceiptText size={24} /><span><strong>บิลน้ำมัน</strong><small>วันที่ ลิตร ราคา และยอดรวม</small></span></div>
+        <div><Gauge size={24} /><span><strong>รูปเลขไมล์</strong><small>ไม่เบลอ ไม่สะท้อน เห็นครบทุกหลัก</small></span></div>
+        <div><LocateFixed size={24} /><span><strong>พิกัด GPS</strong><small>กดในพื้นที่จริงและรอความแม่นยำ</small></span></div>
       </section>
 
-      <section className="guide-layout">
-        <div className="guide-main-column">
-          <section className="guide-card">
-            <div className="guide-card-heading">
-              <span><Route size={18} /></span>
-              <div>
-                <h2>Flow ที่ควรใช้จริงในแต่ละวัน</h2>
-                <p>ทำตามลำดับนี้จะช่วยให้ระยะทาง ค่าน้ำมัน และรายงานไม่สับสน</p>
-              </div>
-            </div>
-            <div className="guide-timeline">
-              <div>
-                <strong>1. ก่อนออกเดินทาง</strong>
-                <p>เปิดหน้าแรก กด “เริ่มงานภาคสนาม” แล้วถ่ายเลขไมล์ต้นวันเพียงครั้งเดียว ก่อนเลือกต้นทางและปลายทางแรก</p>
-              </div>
-              <div>
-                <strong>2. ถึงหน้างาน</strong>
-                <p>ดึง GPS เลือกโครงการ ใส่วัตถุประสงค์ และถ่ายรูปงาน ไม่ต้องบันทึกเลขไมล์ซ้ำ</p>
-              </div>
-              <div>
-                <strong>3. ออกจากหน้างาน</strong>
-                <p>กดออกจากหน้างานเมื่อเสร็จงานที่จุดนั้น ถ้าจะไปอีกไซต์ให้เริ่มช่วงเดินทางใหม่</p>
-              </div>
-              <div>
-                <strong>4. เติมน้ำมันระหว่างวัน</strong>
-                <p>บันทึกเติมน้ำมัน ถ่ายบิลและหน้าปัดเลขไมล์ ระบบจะช่วยอ่านตัวเลขด้วย OCR</p>
-              </div>
-              <div>
-                <strong>5. จบการเดินทางวันนี้</strong>
-                <p>เมื่อเสร็จทุกจุด ให้บันทึกเลขไมล์ปลายวันและรูปหน้าปัด ระบบจะเทียบกับ GPS รวม</p>
-              </div>
-              <div>
-                <strong>6. ตรวจรายงานของฉัน</strong>
-                <p>ดูระยะทาง ยอดเบิก สถานะอนุมัติ และรายการที่แอดมินขอให้ตรวจสอบเพิ่มเติม</p>
-              </div>
-            </div>
-          </section>
-
-          <section className="guide-card">
-            <div className="guide-card-heading">
-              <span><Camera size={18} /></span>
-              <div>
-                <h2>ตัวอย่างขั้นตอนบนมือถือ</h2>
-                <p>ภาพจำลองนี้แทนลำดับการกดใช้งานหลักที่เจอบ่อยที่สุด</p>
-              </div>
-            </div>
-            <StepMockup />
-          </section>
-
-          <section className="guide-card">
-            <div className="guide-card-heading">
-              <span><CarFront size={18} /></span>
-              <div>
-                <h2>ข้อควรรู้เรื่องรถและเลขไมล์</h2>
-                <p>ระบบดึงรถของผู้ใช้เองเป็นหลัก และใช้เลขไมล์กับ GPS เพื่อตรวจความถูกต้อง</p>
-              </div>
-            </div>
-            <div className="guide-note-grid">
-              {doDont.map((item) => (
-                <div key={item.title}>
-                  <strong>{item.title}</strong>
-                  <p>{item.detail}</p>
-                </div>
-              ))}
-            </div>
-          </section>
+      <section className="manual-section manual-help" id="help">
+        <div className="manual-section-heading"><span>เมื่อใช้งานติดขัด</span><h2>แก้ปัญหาที่พบบ่อย</h2><p>อย่าสร้างรายการใหม่เพื่อกลบข้อมูลผิด เพราะจะทำให้รายงานตรวจย้อนหลังยากขึ้น</p></div>
+        <div className="manual-help-grid">
+          {troubleshooting.map((item) => (
+            <details key={item.title}>
+              <summary><CircleHelp size={18} /><strong>{item.title}</strong><ChevronDown size={17} /></summary>
+              <p>{item.answer}</p>
+            </details>
+          ))}
         </div>
+        <div className="manual-warning"><AlertTriangle size={20} /><div><strong>รายการผิดและแก้เองไม่ได้</strong><span>เก็บภาพหน้าจอ รหัสโครงการ เวลาเกิดเหตุ และแจ้งแอดมิน ห้ามลบหรือบันทึกข้อมูลสมมติเพื่อให้ผ่าน</span></div></div>
+      </section>
 
-        <aside className="guide-side-column">
-          <section className="guide-side-card primary">
-            <span><MapPinned size={24} /></span>
-            <h2>หลักสำคัญ</h2>
-            <p>หนึ่งไซต์ควรมีหนึ่งรอบเช็คอินและเช็คเอาท์ ถ้าย้ายไซต์ให้ปิดงานเดิมก่อน เพื่อให้ระบบแยกระยะทางได้ถูก</p>
-          </section>
-
-          {roleCards.map((item) => {
-            const Icon = item.icon;
-            return (
-              <section className="guide-side-card" key={item.role}>
-                <span><Icon size={22} /></span>
-                <h2>{item.role}</h2>
-                <ul>
-                  {item.points.map((point) => (
-                    <li key={point}>{point}</li>
-                  ))}
-                </ul>
-              </section>
-            );
-          })}
-        </aside>
+      <section className="manual-finish">
+        <div><span><Clock3 size={19} /></span><h2>พร้อมเริ่มงานภาคสนามแล้ว</h2><p>ระบบจะนำคุณไปยังขั้นตอนที่ถูกต้องตามสถานะงานปัจจุบันโดยอัตโนมัติ</p></div>
+        <div><Link className="button success" href="/dashboard">กลับหน้าแรก <ArrowRight size={16} /></Link><Link className="button secondary" href="/reports">ดูรายงานของฉัน</Link></div>
       </section>
     </div>
   );
