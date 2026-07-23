@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ClipboardList,
-  Gauge,
   LocateFixed,
   MapPin,
   MapPinned,
@@ -28,20 +27,11 @@ type ProjectOption = {
   customerName: string;
 };
 
-type VehicleOption = {
-  id: string;
-  name: string;
-  licensePlate: string | null;
-  kmPerLiter: number | null;
-  isDefault: boolean;
-};
-
 type ActiveTripOption = {
   id: string;
   originType: string;
   originLabel: string | null;
   startedAt: Date | string;
-  odometerStartKm: number | null;
   destinationProject: ProjectOption;
   vehicle: {
     name: string;
@@ -62,11 +52,9 @@ const purposes = [
 
 export function CheckInForm({
   projects,
-  vehicles,
   activeTrip
 }: {
   projects: ProjectOption[];
-  vehicles: VehicleOption[];
   activeTrip?: ActiveTripOption | null;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -81,7 +69,6 @@ export function CheckInForm({
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const hasProjects = projects.length > 0;
-  const hasVehicles = vehicles.length > 0;
   const selectedProject = activeTrip?.destinationProject ?? projects.find((project) => project.id === selectedProjectId);
   const { projects: filteredProjects, searching: projectSearching, error: projectSearchError } = useProjectSearch(projects, projectQuery);
   const gpsText = useMemo(() => {
@@ -186,56 +173,13 @@ export function CheckInForm({
       <input type="hidden" name="projectId" value={selectedProjectId} />
       <input type="hidden" name="tripSessionId" value={activeTrip?.id ?? ""} />
 
-      <section className="odometer-card">
+      <section className="odometer-card compact-day-odometer">
         <div className="odometer-card-head">
           <span><CarFront size={18} /></span>
           <div>
-            <strong>{activeTrip ? "รถหลักและเลขไมล์เมื่อถึงหน้างาน" : "รถและเลขไมล์"}</strong>
-            <small>{activeTrip ? "ใช้ปิดระยะจากจุดเริ่มเดินทางมายังหน้างานนี้" : "ใช้คำนวณค่าน้ำมันตามรถจริง และเทียบกับระยะ GPS"}</small>
+            <strong>{activeTrip?.vehicle?.name ?? "รถประจำรอบงาน"}</strong>
+            <small>เช็คอินครั้งนี้ใช้ GPS เท่านั้น เลขไมล์จะบันทึกอีกครั้งเมื่อจบการเดินทางวันนี้</small>
           </div>
-        </div>
-
-        {activeTrip ? (
-          <div className="trip-vehicle-card ready">
-            <span><CarFront size={20} /></span>
-            <div>
-              <strong>{activeTrip.vehicle?.name ?? "รถหลัก"}</strong>
-              <small>
-                {activeTrip.vehicle?.licensePlate ? `${activeTrip.vehicle.licensePlate} · ` : ""}
-                {activeTrip.vehicle?.kmPerLiter?.toFixed(1) ?? "-"} กม./ลิตร
-                {activeTrip.odometerStartKm !== null ? ` · เริ่ม ${activeTrip.odometerStartKm.toLocaleString("th-TH")} กม.` : ""}
-              </small>
-            </div>
-          </div>
-        ) : (
-          <div className="field">
-            <label htmlFor="vehicleId"><CarFront size={15} /> รถที่ใช้เดินทาง</label>
-            <select className="select" id="vehicleId" name="vehicleId" defaultValue={vehicles[0]?.id ?? ""} disabled={!hasVehicles}>
-              {hasVehicles ? (
-                vehicles.map((vehicle) => (
-                  <option key={vehicle.id} value={vehicle.id}>
-                    {vehicle.name}{vehicle.licensePlate ? ` · ${vehicle.licensePlate}` : ""} · {vehicle.kmPerLiter?.toFixed(1) ?? "-"} กม./ลิตร
-                  </option>
-                ))
-              ) : (
-                <option value="">ยังไม่มีรถที่อนุมัติ</option>
-              )}
-            </select>
-          </div>
-        )}
-
-        <div className="form-grid two">
-          <div className="field">
-            <label htmlFor="odometerStartKm"><Gauge size={15} /> {activeTrip ? "เลขไมล์เมื่อถึงหน้างาน" : "เลขไมล์เริ่มต้น"}</label>
-            <input className="input" id="odometerStartKm" name="odometerStartKm" type="number" min="0" step="0.1" placeholder={activeTrip ? "เช่น 45248.0" : "เช่น 45210.5"} />
-          </div>
-          <CameraCaptureField
-            name="odometerStartPhoto"
-            label={activeTrip ? "รูปเลขไมล์เมื่อถึงหน้างาน" : "รูปหน้าปัดเลขไมล์"}
-            title={activeTrip ? "ถ่ายเลขไมล์เมื่อถึงหน้างาน" : "ถ่ายหน้าปัดเลขไมล์"}
-            description="เปิดกล้องในระบบและถ่ายให้เห็นตัวเลขชัดเจน"
-            ocrTargets={[{ targetId: "odometerStartKm", label: "เลขไมล์" }]}
-          />
         </div>
       </section>
 

@@ -10,6 +10,7 @@ import {
   createUserAction,
   createVehicleEfficiencyPresetAction,
   deleteUserAction,
+  endFieldWorkSessionAction,
   removeProfilePhotoAction,
   resolveAnomalyAction,
   reviewTravelClaimAction,
@@ -98,6 +99,10 @@ export async function startTripFormAction(formData: FormData) {
 
 export async function completeOfficeTripFormAction(formData: FormData) {
   return execute(completeOfficeTripAction, formData);
+}
+
+export async function endFieldWorkSessionFormAction(formData: FormData) {
+  return execute(endFieldWorkSessionAction, formData);
 }
 
 export async function createCheckInFormAction(formData: FormData) {

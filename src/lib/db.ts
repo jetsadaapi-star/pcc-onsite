@@ -11,7 +11,7 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const prismaSchemaVersion = "20260713112000_performance_indexes";
+const prismaSchemaVersion = "20260723090000_field_work_sessions";
 
 function createPool() {
   const pool = new Pool({
@@ -39,6 +39,7 @@ function isCurrentClient(client: PrismaClient | undefined) {
   return Boolean(
     current &&
     "tripSession" in current &&
+    "fieldWorkSession" in current &&
     "officeLocation" in current &&
     "systemSetting" in current &&
     "anomalyRecord" in current &&

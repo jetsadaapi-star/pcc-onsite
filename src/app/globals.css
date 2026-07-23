@@ -23,6 +23,74 @@
   --radius: 8px;
 }
 
+/* Daily field-work odometer flow */
+.compact-day-odometer {
+  padding: 14px 16px;
+  background: #e9f6f2;
+  border-color: #9ed8ca;
+}
+
+.field-day-active-note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 13px 14px;
+  color: #075f5b;
+  background: #dcf5ee;
+  border: 1px solid #94d8c7;
+  border-radius: 8px;
+}
+
+.field-day-active-note > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.field-day-active-note small {
+  color: #52736f;
+}
+
+.end-field-day-disclosure {
+  margin-top: 18px;
+  border: 1px solid #efb7b0;
+  border-radius: 8px;
+  background: #fff6f5;
+  overflow: hidden;
+}
+
+.end-field-day-disclosure > summary {
+  padding: 14px 16px;
+  color: #a12c25;
+  font-weight: 700;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.end-field-day-disclosure[open] > summary {
+  border-bottom: 1px solid #efcbc6;
+}
+
+.end-field-day-disclosure > .start-trip-panel {
+  padding: 16px;
+}
+
+.day-summary-card {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .end-field-day-disclosure > .start-trip-panel {
+    padding: 12px;
+  }
+
+  .compact-day-odometer,
+  .field-day-active-note {
+    padding: 12px;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

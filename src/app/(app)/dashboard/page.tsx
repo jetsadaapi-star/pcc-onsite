@@ -56,7 +56,8 @@ export default async function DashboardPage() {
     recentProjects,
     todayTrips,
     todayFuelLogs,
-    todayCheckInRows
+    todayCheckInRows,
+    activeFieldWorkSession
   ] = await Promise.all([
     prisma.$queryRaw<Array<{
       todayCheckIns: number;
@@ -159,6 +160,14 @@ export default async function DashboardPage() {
         checkedOutAt: true,
         project: { select: { name: true } }
       }
+    }),
+    prisma.fieldWorkSession.findFirst({
+      where: { userId: user.id, status: "ACTIVE" },
+      select: {
+        startedAt: true,
+        odometerStartKm: true,
+        vehicle: { select: { name: true, licensePlate: true } }
+      }
     })
   ]);
 
@@ -178,12 +187,14 @@ export default async function DashboardPage() {
   // eslint-disable-next-line react-hooks/purity
   const checkoutWarning = activeVisit ? Date.now() - activeVisit.checkedAt.getTime() > 6 * 60 * 60 * 1000 : false;
   const claimTotal = latestClaims.reduce((sum, claim) => sum + Number(claim.totalAmount), 0);
-  const mainActionLabel = activeVisit ? "เช็คเอาท์หน้างาน" : activeTrip ? "เช็คอินปลายทาง" : "เริ่มเดินทาง";
+  const mainActionLabel = activeVisit ? "ออกจากหน้างาน" : activeTrip ? "บันทึกถึงปลายทาง" : activeFieldWorkSession ? "เดินทางไปจุดถัดไป" : "เริ่มงานภาคสนาม";
   const mainActionHelp = activeVisit
     ? "ปิดงานพร้อม GPS และสรุปงาน"
     : activeTrip
       ? `ถึง ${activeTripDestinationLabel} แล้วให้บันทึกงาน`
-      : "เลือกต้นทาง ปลายทาง และเริ่มคำนวณระยะทาง";
+      : activeFieldWorkSession
+        ? "เลือกรายการถัดไป โดยไม่ต้องกรอกเลขไมล์ซ้ำ"
+        : "บันทึกเลขไมล์ต้นวันและเริ่มคำนวณระยะทาง";
 
   const timelineItems: TimelineItem[] = [
     ...todayTrips.map<TimelineItem>((trip) => ({
@@ -223,21 +234,23 @@ export default async function DashboardPage() {
       <section className="dashboard-focus">
         <div className="dashboard-focus-copy">
           <span className={activeVisit ? "mobile-home-eyebrow active" : "mobile-home-eyebrow"}>
-            {activeVisit ? "กำลังเปิดงาน" : activeTrip ? "กำลังเดินทาง" : greeting(user.name)}
+            {activeVisit ? "กำลังเปิดงาน" : activeTrip ? "กำลังเดินทาง" : activeFieldWorkSession ? "รอบงานวันนี้กำลังเปิด" : greeting(user.name)}
           </span>
-          <h1>{activeVisit ? "อย่าลืมเช็คเอาท์ก่อนออกจากหน้างาน" : activeTrip ? `กำลังไป ${activeTripDestinationLabel}` : "พร้อมออกหน้างานวันนี้"}</h1>
+          <h1>{activeVisit ? "อย่าลืมออกจากงานก่อนเดินทางต่อ" : activeTrip ? `กำลังไป ${activeTripDestinationLabel}` : activeFieldWorkSession ? "พร้อมเดินทางไปจุดถัดไป" : "พร้อมออกหน้างานวันนี้"}</h1>
           <p>
             {activeVisit
               ? `คุณอยู่ที่ ${activeVisit.project.name} มาแล้ว ${durationText(activeVisit.checkedAt)}`
               : activeTrip
                 ? `เริ่มจาก ${activeTrip.originLabel ?? "จุดเริ่มต้น"} เมื่อ ${formatDateTime(activeTrip.startedAt)}`
-                : "เริ่มเดินทาง เติมน้ำมัน หรือเพิ่มหน้างานใหม่ได้จากปุ่มหลักด้านล่าง"}
+                : activeFieldWorkSession
+                  ? `${activeFieldWorkSession.vehicle.name} · เลขไมล์ต้นวัน ${activeFieldWorkSession.odometerStartKm.toLocaleString("th-TH")} กม. จบวันเมื่อเสร็จการเดินทางทั้งหมด`
+                  : "เริ่มงานภาคสนาม เติมน้ำมัน หรือเพิ่มหน้างานใหม่ได้จากปุ่มหลักด้านล่าง"}
           </p>
         </div>
         <div className="dashboard-focus-status">
           {checkoutWarning ? (
             <span className="danger"><AlertTriangle size={16} /> เปิดงานนาน</span>
-          ) : activeVisit || activeTrip ? (
+          ) : activeVisit || activeTrip || activeFieldWorkSession ? (
             <span className="active"><Navigation size={16} /> กำลังทำงาน</span>
           ) : (
             <span><Sparkles size={16} /> พร้อมใช้งาน</span>

@@ -1,16 +1,14 @@
 "use client";
 
-import { Building2, Gauge, LocateFixed, Send } from "lucide-react";
+import { Building2, LocateFixed, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ActionModal } from "@/components/action-modal";
-import { CameraCaptureField } from "@/components/camera-capture-field";
 import { completeOfficeTripFormAction } from "@/lib/form-actions";
 
 type OfficeArrivalFormProps = {
   trip: {
     id: string;
     originLabel: string | null;
-    odometerStartKm: number | null;
     vehicle: {
       name: string;
       licensePlate: string | null;
@@ -107,7 +105,7 @@ export function OfficeArrivalForm({ trip }: OfficeArrivalFormProps) {
       <section className="trip-step-card">
         <div className="trip-section-title">
           <strong>ตำแหน่งปลายทาง</strong>
-          <small>กดดึง GPS ตอนถึงบริษัทเพื่อปิดทริป</small>
+            <small>กดดึง GPS ตอนถึงบริษัทเพื่อปิดช่วงการเดินทางนี้</small>
         </div>
         <div className={gps ? "gps-box ready" : "gps-box"}>
           <div className="toolbar">
@@ -126,31 +124,14 @@ export function OfficeArrivalForm({ trip }: OfficeArrivalFormProps) {
 
       <section className="trip-step-card">
         <div className="trip-section-title">
-          <strong>เลขไมล์ตอนถึง</strong>
-          <small>
-            {trip.vehicle
-              ? `${trip.vehicle.name}${trip.vehicle.licensePlate ? ` · ${trip.vehicle.licensePlate}` : ""}`
-              : "รถหลักของคุณ"}
-            {trip.odometerStartKm !== null ? ` · เริ่ม ${trip.odometerStartKm.toLocaleString("th-TH")} กม.` : ""}
-          </small>
-        </div>
-        <div className="form-grid two">
-          <div className="field">
-            <label htmlFor="office-odometerEndKm"><Gauge size={15} /> เลขไมล์เมื่อถึงบริษัท</label>
-            <input className="input" id="office-odometerEndKm" name="odometerEndKm" type="number" min="0" step="0.1" placeholder="เช่น 45248.0" />
-          </div>
-          <CameraCaptureField
-            name="odometerEndPhoto"
-            label="รูปเลขไมล์เมื่อถึงบริษัท"
-            title="ถ่ายเลขไมล์เมื่อถึงบริษัท"
-            description="ใช้ตรวจสอบระยะจริงกับ GPS"
-          />
+          <strong>รถประจำรอบงาน</strong>
+          <small>{trip.vehicle ? `${trip.vehicle.name}${trip.vehicle.licensePlate ? ` · ${trip.vehicle.licensePlate}` : ""}` : "รถหลักของคุณ"} · ยังไม่ต้องบันทึกเลขไมล์จนกว่าจะจบการเดินทางวันนี้</small>
         </div>
       </section>
 
       <button className="button success full-action-button" type="button" onClick={submitWithFeedback} disabled={isPending}>
         <Send size={17} />
-        {isPending ? "กำลังปิดทริป..." : "บันทึกว่าถึงบริษัทแล้ว"}
+        {isPending ? "กำลังบันทึกปลายทาง..." : "บันทึกว่าถึงบริษัทแล้ว"}
       </button>
 
       <ActionModal

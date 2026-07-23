@@ -86,6 +86,11 @@ enum TripStatus {
   CANCELLED
 }
 
+enum FieldWorkSessionStatus {
+  ACTIVE
+  COMPLETED
+}
+
 enum TripDestinationType {
   PROJECT
   OFFICE
@@ -103,6 +108,8 @@ enum OdometerLogType {
   CHECK_IN
   CHECK_OUT
   REFUEL
+  DAY_START
+  DAY_END
 }
 
 enum NotificationChannel {
@@ -167,6 +174,7 @@ model User {
   createdProjects Project[]     @relation("ProjectCreator")
   ownedProjects   Project[]     @relation("ProjectOwner")
   vehicles        Vehicle[]
+  fieldWorkSessions FieldWorkSession[]
   tripSessions    TripSession[]
   checkIns        CheckIn[]
   odometerLogs    OdometerLog[]
@@ -209,6 +217,7 @@ model Vehicle {
 
   user         User          @relation(fields: [userId], references: [id])
   checkIns     CheckIn[]
+  fieldWorkSessions FieldWorkSession[]
   tripSessions TripSession[]
   odometerLogs OdometerLog[]
   fuelLogs     FuelLog[]
@@ -330,6 +339,7 @@ model TripSession {
   id                   String         @id @default(cuid())
   userId               String
   vehicleId            String?
+  fieldWorkSessionId   String?
   originType           TripOriginType
   originLabel          String?
   originLatitude       Float
@@ -360,15 +370,49 @@ model TripSession {
 
   user               User       @relation(fields: [userId], references: [id])
   vehicle            Vehicle?   @relation(fields: [vehicleId], references: [id])
+  fieldWorkSession   FieldWorkSession? @relation(fields: [fieldWorkSessionId], references: [id])
   fromProject        Project?   @relation("TripOriginProject", fields: [fromProjectId], references: [id])
   destinationProject Project?   @relation("TripDestinationProject", fields: [destinationProjectId], references: [id])
   checkIn            CheckIn?
   travelLeg          TravelLeg?
 
   @@index([userId, status, startedAt])
+  @@index([fieldWorkSessionId, startedAt])
   @@index([status, startedAt])
   @@index([destinationProjectId, status])
   @@index([destinationType, status])
+}
+
+model FieldWorkSession {
+  id                    String                 @id @default(cuid())
+  userId                String
+  vehicleId             String
+  status                FieldWorkSessionStatus @default(ACTIVE)
+  startedAt             DateTime               @default(now())
+  endedAt               DateTime?
+  startLatitude         Float
+  startLongitude        Float
+  startAccuracy         Float?
+  endLatitude           Float?
+  endLongitude          Float?
+  endAccuracy           Float?
+  odometerStartKm       Float
+  odometerStartPhotoUrl String
+  odometerEndKm         Float?
+  odometerEndPhotoUrl   String?
+  gpsDistanceKm         Float?
+  odometerDistanceKm    Float?
+  distanceVariancePercent Float?
+  endNote               String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id])
+  vehicle      Vehicle       @relation(fields: [vehicleId], references: [id])
+  tripSessions TripSession[]
+
+  @@index([userId, status, startedAt])
+  @@index([vehicleId, startedAt])
 }
 
 model TravelLeg {

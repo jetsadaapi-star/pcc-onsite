@@ -1,6 +1,6 @@
 "use client";
 
-import { CarFront, ClipboardCheck, FileText, Gauge, LocateFixed, LogOut, MapPin, MapPinned } from "lucide-react";
+import { CarFront, ClipboardCheck, FileText, LocateFixed, LogOut, MapPin, MapPinned } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ActionModal } from "@/components/action-modal";
 import { CameraCaptureField } from "@/components/camera-capture-field";
@@ -139,25 +139,8 @@ export function CheckOutForm({ activeVisit }: { activeVisit: ActiveVisit }) {
           <span><CarFront size={18} /></span>
           <div>
             <strong>{activeVisit.vehicle?.name ?? "รถที่ใช้เดินทาง"}</strong>
-            <small>
-              {activeVisit.vehicle?.licensePlate ? `${activeVisit.vehicle.licensePlate} · ` : ""}
-              {activeVisit.odometerStartKm !== null ? `เริ่ม ${activeVisit.odometerStartKm.toLocaleString("th-TH")} กม.` : "เพิ่มเลขไมล์ตอนออกเพื่อปิดงานให้ครบ"}
-            </small>
+            <small>{activeVisit.vehicle?.licensePlate ? `${activeVisit.vehicle.licensePlate} · ` : ""}ออกจากไซต์ด้วย GPS โดยไม่ต้องถ่ายเลขไมล์ซ้ำ</small>
           </div>
-        </div>
-        <div className="form-grid two">
-          <div className="field">
-            <label htmlFor="odometerEndKm"><Gauge size={15} /> เลขไมล์ตอนออก</label>
-            <input className="input" id="odometerEndKm" name="odometerEndKm" type="number" min="0" step="0.1" placeholder="เช่น 45248.0" />
-          </div>
-          <CameraCaptureField
-            name="odometerEndPhoto"
-            label="รูปหน้าปัดเลขไมล์"
-            title="ถ่ายหน้าปัดตอนออก"
-            description="เปิดกล้องในระบบเพื่อยืนยันเลขไมล์ปลายทาง"
-            tone="danger"
-            ocrTargets={[{ targetId: "odometerEndKm", label: "เลขไมล์" }]}
-          />
         </div>
       </section>
 
@@ -186,7 +169,7 @@ export function CheckOutForm({ activeVisit }: { activeVisit: ActiveVisit }) {
 
       <button className="button danger full-action-button" type="button" onClick={requestCheckout} disabled={isPending}>
         {isPending ? <MapPinned size={17} /> : <LogOut size={17} />}
-        {isPending ? "กำลังเช็คเอาท์..." : "เช็คเอาท์"}
+        {isPending ? "กำลังบันทึกเวลาออก..." : "ออกจากหน้างาน"}
       </button>
       <ActionModal
         open={!!notice}
@@ -198,9 +181,9 @@ export function CheckOutForm({ activeVisit }: { activeVisit: ActiveVisit }) {
       <ActionModal
         open={confirmOpen}
         tone="danger"
-        title="ยืนยันเช็คเอาท์?"
-        description={`การเช็คเอาท์จะปิดงานที่ ${activeVisit.project.name} และบันทึกเวลาออกกับพิกัดปัจจุบัน`}
-        confirmLabel="ยืนยันเช็คเอาท์"
+        title="ยืนยันออกจากหน้างาน?"
+        description={`ระบบจะปิดงานที่ ${activeVisit.project.name} และบันทึกเวลาออกกับพิกัดปัจจุบัน โดยยังไม่จบรอบการเดินทางวันนี้`}
+        confirmLabel="ยืนยันออกจากหน้างาน"
         cancelLabel="ยกเลิก"
         onConfirm={confirmCheckout}
         onClose={() => setConfirmOpen(false)}

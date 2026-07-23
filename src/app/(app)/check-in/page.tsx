@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { CancelTripButton } from "@/components/cancel-trip-button";
 import { CheckInForm } from "@/components/check-in-form";
 import { CheckOutForm } from "@/components/check-out-form";
+import { EndFieldWorkSessionForm } from "@/components/end-field-work-session-form";
 import { MapPreview } from "@/components/map-preview";
 import { OfficeArrivalForm } from "@/components/office-arrival-form";
 import { StartTripForm } from "@/components/start-trip-form";
@@ -24,7 +25,7 @@ export default async function CheckInPage() {
   const user = await requireUser();
   if (user.role === "ADMIN") redirect("/admin");
 
-  const [projects, vehicles, recentCheckIns, lastLeg, activeVisit, activeTrip, previousSite, defaultOffice] = await Promise.all([
+  const [projects, vehicles, recentCheckIns, lastLeg, activeVisit, activeTrip, previousSite, defaultOffice, activeFieldWorkSession] = await Promise.all([
     prisma.project.findMany({
       where: { status: { notIn: ["COMPLETED", "CLOSED_LOST", "CANCELLED"] } },
       orderBy: { updatedAt: "desc" },
@@ -69,9 +70,17 @@ export default async function CheckInPage() {
       where: { active: true },
       orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
       select: { name: true, latitude: true, longitude: true }
+    }),
+    prisma.fieldWorkSession.findFirst({
+      where: { userId: user.id, status: "ACTIVE" },
+      include: {
+        vehicle: { select: { id: true, name: true, licensePlate: true, kmPerLiter: true, isDefault: true } },
+        tripSessions: { select: { travelLeg: { select: { distanceKm: true } } } }
+      }
     })
   ]);
-  const defaultVehicle = vehicles[0] ?? null;
+  const defaultVehicle = activeFieldWorkSession?.vehicle ?? vehicles[0] ?? null;
+  const fieldDayDistanceKm = activeFieldWorkSession?.tripSessions.reduce((sum, trip) => sum + (trip.travelLeg?.distanceKm ?? 0), 0) ?? 0;
   const activeOfficeTrip = activeTrip?.destinationType === "OFFICE" ? activeTrip : null;
   const activeProjectTrip = activeTrip?.destinationType === "PROJECT" && activeTrip.destinationProject
     ? { ...activeTrip, destinationProject: activeTrip.destinationProject }
@@ -97,14 +106,16 @@ export default async function CheckInPage() {
     <div className="field-visit-page">
       <section className={activeVisit ? "visit-hero active" : "visit-hero"}>
         <div>
-          <span className="visit-eyebrow">{activeVisit ? "Active visit" : activeTrip ? "Arriving" : "Start trip"}</span>
-          <h1>{activeVisit ? "เช็คเอาท์หน้างาน" : activeTrip ? "ถึงหน้างานแล้วใช่ไหม" : "เริ่มเดินทางออกหน้างาน"}</h1>
+          <span className="visit-eyebrow">{activeVisit ? "Active visit" : activeTrip ? "Arriving" : activeFieldWorkSession ? "Field day active" : "Start field day"}</span>
+          <h1>{activeVisit ? "ออกจากหน้างาน" : activeTrip ? "ถึงปลายทางแล้วใช่ไหม" : activeFieldWorkSession ? "เดินทางไปจุดถัดไป" : "เริ่มงานภาคสนามวันนี้"}</h1>
           <p>
             {activeVisit
               ? `คุณกำลังอยู่ที่ ${activeVisit.project.name} มาแล้ว ${durationText(activeVisit.checkedAt)}`
               : activeTrip
                 ? `ทริปนี้เริ่มจาก ${activeTrip.originLabel ?? "จุดเริ่มต้น"} ไปยัง ${activeTripDestinationLabel}`
-                : "เลือกต้นทางและปลายทางก่อนออกเดินทาง ระบบจะใช้รถหลักอัตโนมัติและคำนวณระยะทางเมื่อเช็คอินถึงหน้างาน"}
+                : activeFieldWorkSession
+                  ? `รอบวันนี้เปิดแล้วด้วย ${activeFieldWorkSession.vehicle.name} เลขไมล์ต้นวัน ${activeFieldWorkSession.odometerStartKm.toLocaleString("th-TH")} กม.`
+                  : "เลือกต้นทาง ปลายทาง และบันทึกเลขไมล์ต้นวันครั้งเดียว ระบบจะคำนวณระยะทางทุกช่วงให้อัตโนมัติ"}
           </p>
         </div>
         <span className="visit-hero-icon">
@@ -123,8 +134,8 @@ export default async function CheckInPage() {
         <main className="visit-main-card">
           <div className="visit-form-heading">
             <div>
-              <h2>{activeVisit ? "ปิดงานนี้" : activeTrip ? "เช็คอินปลายทาง" : "เริ่มเดินทาง"}</h2>
-              <p>{activeVisit ? "ดึง GPS ตอนออก สรุปงาน และแนบรูปถ้าต้องการ" : activeTrip ? "เมื่อถึงหน้างาน ให้ดึง GPS และบันทึกงาน" : "เลือกต้นทาง ปลายทาง และเลขไมล์ก่อนออก"}</p>
+              <h2>{activeVisit ? "ออกจากงานนี้" : activeTrip ? "บันทึกถึงปลายทาง" : activeFieldWorkSession ? "เริ่มช่วงการเดินทางถัดไป" : "เปิดรอบงานภาคสนาม"}</h2>
+              <p>{activeVisit ? "ดึง GPS ตอนออก สรุปงาน และแนบรูปโดยไม่ต้องบันทึกเลขไมล์" : activeTrip ? "เมื่อถึงหน้างาน ให้ดึง GPS และบันทึกงาน" : activeFieldWorkSession ? "เลือกต้นทางและปลายทาง ไม่ต้องกรอกเลขไมล์ซ้ำ" : "บันทึกเลขไมล์ต้นวัน แล้วเลือกต้นทางและปลายทางแรก"}</p>
             </div>
             {!activeVisit && !activeTrip ? (
               <Link className="row-view-button" href="/projects/new?returnTo=/check-in">
@@ -140,9 +151,23 @@ export default async function CheckInPage() {
           ) : activeOfficeTrip ? (
             <OfficeArrivalForm trip={activeOfficeTrip} />
           ) : activeProjectTrip ? (
-            <CheckInForm projects={projects} vehicles={vehicles} activeTrip={activeProjectTrip} />
+            <CheckInForm projects={projects} activeTrip={activeProjectTrip} />
           ) : (
-            <StartTripForm projects={projects} defaultVehicle={defaultVehicle} hasPreviousSite={!!previousSite} defaultOffice={defaultOffice} />
+            <>
+              <StartTripForm projects={projects} defaultVehicle={defaultVehicle} activeFieldWorkSession={activeFieldWorkSession} hasPreviousSite={!!previousSite} defaultOffice={defaultOffice} />
+              {activeFieldWorkSession ? (
+                <details className="end-field-day-disclosure">
+                  <summary>เสร็จงานแล้ว · จบการเดินทางวันนี้</summary>
+                  <EndFieldWorkSessionForm session={{
+                    startedAt: activeFieldWorkSession.startedAt,
+                    odometerStartKm: activeFieldWorkSession.odometerStartKm,
+                    vehicle: activeFieldWorkSession.vehicle,
+                    tripCount: activeFieldWorkSession.tripSessions.length,
+                    distanceKm: fieldDayDistanceKm
+                  }} />
+                </details>
+              ) : null}
+            </>
           )}
         </main>
 

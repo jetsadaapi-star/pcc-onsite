@@ -54,11 +54,17 @@ const originOptions = [
 export function StartTripForm({
   projects,
   defaultVehicle,
+  activeFieldWorkSession,
   hasPreviousSite,
   defaultOffice
 }: {
   projects: ProjectOption[];
   defaultVehicle: VehicleOption | null;
+  activeFieldWorkSession?: {
+    startedAt: Date | string;
+    odometerStartKm: number;
+    vehicle: VehicleOption;
+  } | null;
   hasPreviousSite: boolean;
   defaultOffice: OfficeOption;
 }) {
@@ -133,6 +139,20 @@ export function StartTripForm({
         description: "กรุณาเพิ่มรถของคุณ และรอแอดมินอนุมัติพร้อมกำหนด กม./ลิตร ก่อนเริ่มเดินทาง"
       });
       return;
+    }
+    if (!activeFieldWorkSession) {
+      const formData = new FormData(formRef.current!);
+      const odometerValue = String(formData.get("odometerStartKm") ?? "").trim();
+      const odometer = Number(odometerValue);
+      const photo = formData.get("odometerStartPhoto");
+      if (!odometerValue || !Number.isFinite(odometer) || odometer < 0) {
+        setModal({ title: "กรุณากรอกเลขไมล์ต้นวัน", description: "บันทึกครั้งนี้เพียงครั้งเดียว แล้วระบบจะไม่ถามเลขไมล์อีกจนกว่าจะจบการเดินทางวันนี้" });
+        return;
+      }
+      if (!(photo instanceof File) || photo.size === 0) {
+        setModal({ title: "กรุณาถ่ายรูปเลขไมล์ต้นวัน", description: "ถ่ายหน้าปัดให้เห็นตัวเลขชัดเจนเพื่อใช้ตรวจระยะทางรวมทั้งวัน" });
+        return;
+      }
     }
     if (destinationType === "PROJECT" && !selectedProjectId) {
       setModal({
@@ -232,8 +252,8 @@ export function StartTripForm({
 
       <section className="trip-step-card">
         <div className="trip-section-title">
-          <strong>รถหลักที่ใช้คำนวณ</strong>
-          <small>ระบบเลือกจากรถที่แอดมินอนุมัติแล้วอัตโนมัติ</small>
+          <strong>{activeFieldWorkSession ? "รอบงานภาคสนามกำลังเปิด" : "รถหลักและเลขไมล์ต้นวัน"}</strong>
+          <small>{activeFieldWorkSession ? "ใช้รถและเลขไมล์ต้นวันเดิม ไม่ต้องกรอกซ้ำในแต่ละช่วง" : "บันทึกครั้งเดียวเมื่อเริ่มงาน และอีกครั้งเมื่อจบการเดินทางวันนี้"}</small>
         </div>
         <div className={defaultVehicle ? "trip-vehicle-card ready" : "trip-vehicle-card"}>
           <span><CarFront size={20} /></span>
@@ -246,10 +266,10 @@ export function StartTripForm({
             </small>
           </div>
         </div>
-        <div className="form-grid two">
+        {!activeFieldWorkSession ? <div className="form-grid two">
           <div className="field">
             <label htmlFor="trip-odometerStartKm"><Gauge size={15} /> เลขไมล์ก่อนออก</label>
-            <input className="input" id="trip-odometerStartKm" name="odometerStartKm" type="number" min="0" step="0.1" placeholder="เช่น 45210.5" />
+            <input className="input" id="trip-odometerStartKm" name="odometerStartKm" type="number" min="0" step="0.1" placeholder="เช่น 45210.5" required />
           </div>
           <CameraCaptureField
             name="odometerStartPhoto"
@@ -257,7 +277,12 @@ export function StartTripForm({
             title="ถ่ายเลขไมล์ก่อนออก"
             description="ใช้ตรวจสอบระยะทางจริงกับ GPS"
           />
-        </div>
+        </div> : (
+          <div className="field-day-active-note">
+            <Gauge size={18} />
+            <div><strong>เลขไมล์ต้นวัน {activeFieldWorkSession.odometerStartKm.toLocaleString("th-TH")} กม.</strong><small>ระบบจะรวมระยะ GPS ทุกช่วงเพื่อสรุปตอนจบวัน</small></div>
+          </div>
+        )}
       </section>
 
       <section className="trip-step-card">

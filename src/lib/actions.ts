@@ -20,6 +20,7 @@ import { processCheckoutReminders } from "@/lib/notifications";
 import { calculateReimbursement } from "@/lib/reimbursement";
 import { canTransitionProjectStatus, type ProjectStatus } from "@/lib/project-status";
 import { getNumber, getString } from "@/lib/form-values";
+import { summarizeFieldWorkDistance } from "@/lib/field-work-session";
 import type { CheckInPurpose, CheckOutStatus, ClaimStatus, FuelType, Role, TripOriginType } from "@/generated/prisma/enums";
 
 function getSafeRedirectPath(value: string) {
@@ -265,8 +266,15 @@ const officeTripCompletionSchema = z.object({
   latitude: z.number(),
   longitude: z.number(),
   accuracy: z.number().optional(),
-  odometerEndKm: z.number().nonnegative().optional(),
   note: z.string().optional()
+});
+
+const endFieldWorkSessionSchema = z.object({
+  latitude: z.number(),
+  longitude: z.number(),
+  accuracy: z.number().optional(),
+  odometerEndKm: z.number().nonnegative(),
+  note: z.string().max(500).optional()
 });
 
 const cancelTripSchema = z.object({
@@ -393,12 +401,16 @@ export async function startTripAction(formData: FormData) {
     odometerStartKm: getNumber(formData, "odometerStartKm")
   });
 
-  const [activeVisit, activeTrip, defaultOffice] = await Promise.all([
+  const [activeVisit, activeTrip, defaultOffice, activeFieldWorkSession] = await Promise.all([
     prisma.checkIn.findFirst({ where: { userId: user.id, checkedOutAt: null } }),
     prisma.tripSession.findFirst({ where: { userId: user.id, status: "ACTIVE" } }),
     prisma.officeLocation.findFirst({
       where: { active: true },
       orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }]
+    }),
+    prisma.fieldWorkSession.findFirst({
+      where: { userId: user.id, status: "ACTIVE" },
+      include: { vehicle: true }
     })
   ]);
   if (activeVisit) redirect("/check-in?active=1");
@@ -416,10 +428,10 @@ export async function startTripAction(formData: FormData) {
     destinationLabel = destination.name;
   }
 
-  const vehicle = await prisma.vehicle.findFirst({
-    where: { userId: user.id, active: true, approved: true, kmPerLiter: { not: null } },
-    orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }]
-  });
+  const vehicle = activeFieldWorkSession?.vehicle ?? await prisma.vehicle.findFirst({
+      where: { userId: user.id, active: true, approved: true, kmPerLiter: { not: null } },
+      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }]
+    });
   if (!vehicle) throw new Error("ยังไม่มีรถที่แอดมินอนุมัติและกำหนด กม./ลิตร");
 
   let originLatitude = input.originLatitude;
@@ -452,34 +464,80 @@ export async function startTripAction(formData: FormData) {
   }
   assertCoordinates(originLatitude, originLongitude, originAccuracy);
 
-  const odometerStartPhotoUrl = await saveImageFromForm(formData, "odometerStartPhoto", "odometers", user.id);
+  const odometerStartPhotoUrl = activeFieldWorkSession
+    ? undefined
+    : await saveImageFromForm(formData, "odometerStartPhoto", "odometers", user.id);
+  if (!activeFieldWorkSession && input.odometerStartKm === undefined) {
+    throw new Error("กรุณากรอกเลขไมล์เริ่มต้นของวันนี้");
+  }
+  if (!activeFieldWorkSession && !odometerStartPhotoUrl) {
+    throw new Error("กรุณาถ่ายรูปเลขไมล์เริ่มต้นของวันนี้");
+  }
 
-  const trip = await prisma.tripSession.create({
-    data: {
-      userId: user.id,
-      vehicleId: vehicle.id,
-      originType: input.originType,
-      originLabel,
-      originLatitude,
-      originLongitude,
-      originAccuracy,
-      fromProjectId,
-      destinationType: input.destinationType,
-      destinationProjectId: input.destinationType === "PROJECT" ? input.destinationProjectId : undefined,
-      destinationLabel,
-      odometerStartKm: input.odometerStartKm,
-      odometerStartPhotoUrl
+  await prisma.$transaction(async (tx) => {
+    let fieldWorkSessionId = activeFieldWorkSession?.id;
+    if (!fieldWorkSessionId) {
+      const fieldSession = await tx.fieldWorkSession.create({
+        data: {
+          userId: user.id,
+          vehicleId: vehicle.id,
+          startLatitude: originLatitude,
+          startLongitude: originLongitude,
+          startAccuracy: originAccuracy,
+          odometerStartKm: input.odometerStartKm!,
+          odometerStartPhotoUrl: odometerStartPhotoUrl!
+        }
+      });
+      fieldWorkSessionId = fieldSession.id;
+      await tx.odometerLog.create({
+        data: {
+          userId: user.id,
+          vehicleId: vehicle.id,
+          type: "DAY_START",
+          odometerKm: input.odometerStartKm!,
+          photoUrl: odometerStartPhotoUrl,
+          latitude: originLatitude,
+          longitude: originLongitude,
+          note: "เริ่มงานภาคสนาม"
+        }
+      });
+      await tx.activityLog.create({
+        data: {
+          actorId: user.id,
+          entityType: "FieldWorkSession",
+          entityId: fieldSession.id,
+          action: "START_FIELD_WORK_DAY",
+          metadata: { vehicleId: vehicle.id, odometerStartKm: input.odometerStartKm }
+        }
+      });
     }
-  });
 
-  await prisma.activityLog.create({
-    data: {
-      actorId: user.id,
-      entityType: "TripSession",
-      entityId: trip.id,
-      action: "START_TRIP",
-      metadata: { originType: input.originType, destinationType: input.destinationType, destinationProjectId: input.destinationProjectId, vehicleId: vehicle.id }
-    }
+    const createdTrip = await tx.tripSession.create({
+      data: {
+        userId: user.id,
+        vehicleId: vehicle.id,
+        fieldWorkSessionId,
+        originType: input.originType,
+        originLabel,
+        originLatitude,
+        originLongitude,
+        originAccuracy,
+        fromProjectId,
+        destinationType: input.destinationType,
+        destinationProjectId: input.destinationType === "PROJECT" ? input.destinationProjectId : undefined,
+        destinationLabel
+      }
+    });
+    await tx.activityLog.create({
+      data: {
+        actorId: user.id,
+        entityType: "TripSession",
+        entityId: createdTrip.id,
+        action: "START_TRIP",
+        metadata: { originType: input.originType, destinationType: input.destinationType, destinationProjectId: input.destinationProjectId, vehicleId: vehicle.id, fieldWorkSessionId }
+      }
+    });
+    return createdTrip;
   });
 
   revalidatePath("/check-in");
@@ -530,7 +588,6 @@ export async function completeOfficeTripAction(formData: FormData) {
     latitude: getNumber(formData, "latitude"),
     longitude: getNumber(formData, "longitude"),
     accuracy: getNumber(formData, "accuracy"),
-    odometerEndKm: getNumber(formData, "odometerEndKm"),
     note: getString(formData, "note") || undefined
   });
 
@@ -565,7 +622,6 @@ export async function completeOfficeTripAction(formData: FormData) {
     { latitude: input.latitude, longitude: input.longitude }
   );
 
-  const odometerEndPhotoUrl = await saveImageFromForm(formData, "odometerEndPhoto", "odometers", user.id);
   const kmPerLiter = trip.vehicle?.kmPerLiter ?? rate?.kmPerLiter ?? 12;
   const reimbursement = calculateReimbursement({
     distanceKm: route.distanceKm,
@@ -573,16 +629,7 @@ export async function completeOfficeTripAction(formData: FormData) {
     kmPerLiter,
     fuelPricePerLiter: Number(rate?.fuelPricePerLiter ?? 36)
   });
-  const odometerDistanceKm =
-    trip.odometerStartKm !== null && trip.odometerStartKm !== undefined && input.odometerEndKm !== undefined
-      ? Math.max(0, input.odometerEndKm - trip.odometerStartKm)
-      : undefined;
-  const distanceVariancePercent =
-    odometerDistanceKm !== undefined && route.distanceKm > 0
-      ? Math.abs(odometerDistanceKm - route.distanceKm) / route.distanceKm * 100
-      : undefined;
-
-  const leg = await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     const updated = await tx.tripSession.updateMany({
       where: { id: trip.id, userId: user.id, status: "ACTIVE" },
       data: {
@@ -592,14 +639,10 @@ export async function completeOfficeTripAction(formData: FormData) {
         destinationLatitude: input.latitude,
         destinationLongitude: input.longitude,
         destinationAccuracy: input.accuracy,
-        odometerEndKm: input.odometerEndKm,
-        odometerEndPhotoUrl,
         distanceKm: route.distanceKm,
         durationMinutes: route.durationMinutes,
         routeProvider: route.routeProvider,
-        distanceStatus: distanceVariancePercent !== undefined && distanceVariancePercent > (settings?.anomalyDistanceVariancePercent ?? 20)
-          ? "PENDING_REVIEW"
-          : route.distanceStatus
+        distanceStatus: route.distanceStatus
       }
     });
     if (updated.count !== 1) throw new Error("ทริปนี้ถูกปิดไปแล้ว กรุณารีเฟรชหน้า");
@@ -618,9 +661,7 @@ export async function completeOfficeTripAction(formData: FormData) {
         distanceKm: route.distanceKm,
         durationMinutes: route.durationMinutes,
         routeProvider: route.routeProvider,
-        distanceStatus: distanceVariancePercent !== undefined && distanceVariancePercent > (settings?.anomalyDistanceVariancePercent ?? 20)
-          ? "PENDING_REVIEW"
-          : route.distanceStatus,
+        distanceStatus: route.distanceStatus,
         routeSummary: route.routeSummary,
         providerPayload: route.providerPayload === undefined ? undefined : JSON.parse(JSON.stringify(route.providerPayload)),
         claim: {
@@ -636,30 +677,11 @@ export async function completeOfficeTripAction(formData: FormData) {
             kmPerLiter,
             fuelPricePerLiter: Number(rate?.fuelPricePerLiter ?? 36),
             fuelEstimate: reimbursement.fuelEstimate,
-            odometerStartKm: trip.odometerStartKm,
-            odometerEndKm: input.odometerEndKm,
-            odometerDistanceKm,
-            distanceVariancePercent,
             totalAmount: reimbursement.totalAmount
           }
         }
       }
     });
-
-    if (input.odometerEndKm !== undefined) {
-      await tx.odometerLog.create({
-        data: {
-          userId: user.id,
-          vehicleId: trip.vehicle?.id,
-          type: "CHECK_OUT",
-          odometerKm: input.odometerEndKm,
-          photoUrl: odometerEndPhotoUrl,
-          latitude: input.latitude,
-          longitude: input.longitude,
-          note: `ถึง ${office.name}`
-        }
-      });
-    }
 
     await tx.activityLog.create({
       data: {
@@ -673,29 +695,107 @@ export async function completeOfficeTripAction(formData: FormData) {
     return createdLeg;
   });
 
-  await settleAnomalyTasks([
-    detectOdometerReversed({
-      sourceKey: `office-trip:${trip.id}`,
-      userId: user.id,
-      vehicleId: trip.vehicle?.id,
-      previousKm: trip.odometerStartKm,
-      currentKm: input.odometerEndKm,
-      label: "Office trip odometer"
-    }),
-    detectDistanceVarianceAnomaly({
-      sourceKey: `travel-leg:${leg.id}`,
-      userId: user.id,
-      vehicleId: trip.vehicle?.id,
-      travelLegId: leg.id,
-      variancePercent: distanceVariancePercent,
-      gpsDistanceKm: route.distanceKm,
-      odometerDistanceKm
-    })
-  ], `office trip ${trip.id}`);
-
   revalidatePath("/check-in");
   revalidatePath("/dashboard");
   redirect("/dashboard?officeTrip=completed");
+}
+
+export async function endFieldWorkSessionAction(formData: FormData) {
+  const user = await requireUser();
+  assertFieldUser(user);
+  const input = endFieldWorkSessionSchema.parse({
+    latitude: getNumber(formData, "latitude"),
+    longitude: getNumber(formData, "longitude"),
+    accuracy: getNumber(formData, "accuracy"),
+    odometerEndKm: getNumber(formData, "odometerEndKm"),
+    note: getString(formData, "note") || undefined
+  });
+  assertCoordinates(input.latitude, input.longitude, input.accuracy);
+
+  const [fieldSession, activeTrip, activeVisit] = await Promise.all([
+    prisma.fieldWorkSession.findFirst({
+      where: { userId: user.id, status: "ACTIVE" },
+      include: { vehicle: true }
+    }),
+    prisma.tripSession.findFirst({ where: { userId: user.id, status: "ACTIVE" }, select: { id: true } }),
+    prisma.checkIn.findFirst({ where: { userId: user.id, checkedOutAt: null }, select: { id: true } })
+  ]);
+  if (!fieldSession) throw new Error("ไม่พบรอบงานภาคสนามที่กำลังเปิดอยู่");
+  if (activeVisit) throw new Error("กรุณาออกจากหน้างานปัจจุบันก่อนจบการเดินทางวันนี้");
+  if (activeTrip) throw new Error("กรุณาบันทึกถึงปลายทางหรือยกเลิกช่วงการเดินทางก่อนจบวันนี้");
+  if (input.odometerEndKm < fieldSession.odometerStartKm) {
+    throw new Error(`เลขไมล์สิ้นสุดต้องไม่น้อยกว่า ${fieldSession.odometerStartKm.toLocaleString("th-TH")} กม.`);
+  }
+
+  const odometerEndPhotoUrl = await saveImageFromForm(formData, "odometerEndPhoto", "odometers", user.id);
+  if (!odometerEndPhotoUrl) throw new Error("กรุณาถ่ายรูปเลขไมล์สิ้นสุดของวันนี้");
+
+  const aggregate = await prisma.travelLeg.aggregate({
+    where: { tripSession: { fieldWorkSessionId: fieldSession.id } },
+    _sum: { distanceKm: true }
+  });
+  const gpsDistanceKm = aggregate._sum.distanceKm ?? 0;
+  const { odometerDistanceKm, distanceVariancePercent } = summarizeFieldWorkDistance({
+    odometerStartKm: fieldSession.odometerStartKm,
+    odometerEndKm: input.odometerEndKm,
+    gpsDistanceKm
+  });
+  const endedAt = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.fieldWorkSession.updateMany({
+      where: { id: fieldSession.id, userId: user.id, status: "ACTIVE" },
+      data: {
+        status: "COMPLETED",
+        endedAt,
+        endLatitude: input.latitude,
+        endLongitude: input.longitude,
+        endAccuracy: input.accuracy,
+        odometerEndKm: input.odometerEndKm,
+        odometerEndPhotoUrl,
+        gpsDistanceKm,
+        odometerDistanceKm,
+        distanceVariancePercent,
+        endNote: input.note
+      }
+    });
+    if (updated.count !== 1) throw new Error("รอบงานวันนี้ถูกปิดไปแล้ว กรุณารีเฟรชหน้า");
+
+    await tx.odometerLog.create({
+      data: {
+        userId: user.id,
+        vehicleId: fieldSession.vehicleId,
+        type: "DAY_END",
+        odometerKm: input.odometerEndKm,
+        photoUrl: odometerEndPhotoUrl,
+        latitude: input.latitude,
+        longitude: input.longitude,
+        note: input.note ?? "จบการเดินทางวันนี้"
+      }
+    });
+    await tx.activityLog.create({
+      data: {
+        actorId: user.id,
+        entityType: "FieldWorkSession",
+        entityId: fieldSession.id,
+        action: "END_FIELD_WORK_DAY",
+        metadata: { gpsDistanceKm, odometerDistanceKm, distanceVariancePercent }
+      }
+    });
+  });
+
+  await detectDistanceVarianceAnomaly({
+    sourceKey: `field-work-session:${fieldSession.id}`,
+    userId: user.id,
+    vehicleId: fieldSession.vehicleId,
+    variancePercent: distanceVariancePercent,
+    gpsDistanceKm,
+    odometerDistanceKm
+  }).catch((error) => console.error("Field work day anomaly detection failed", error));
+
+  revalidatePath("/check-in");
+  revalidatePath("/dashboard");
+  redirect("/dashboard?fieldDay=completed");
 }
 
 export async function createProjectAction(formData: FormData) {
@@ -893,7 +993,8 @@ export async function createCheckInAction(formData: FormData) {
   const note = getString(formData, "note") || undefined;
   const tripSessionId = getString(formData, "tripSessionId") || undefined;
   const vehicleId = getString(formData, "vehicleId") || undefined;
-  const odometerStartKm = getNumber(formData, "odometerStartKm");
+  // Odometer evidence belongs to the field-work day, not each site visit.
+  const odometerStartKm: number | undefined = undefined;
 
   if (!projectId || latitude === undefined || longitude === undefined) {
     throw new Error("กรุณาเลือกโครงการและอนุญาต GPS ก่อนเช็คอิน");
@@ -964,7 +1065,7 @@ export async function createCheckInAction(formData: FormData) {
   const legacyPhotoUrl = await saveImageFromForm(formData, "photo", "check-ins", user.id);
   const allPhotoUrls = legacyPhotoUrl ? [legacyPhotoUrl, ...photoUrls] : photoUrls;
   const photoUrl = allPhotoUrls[0];
-  const odometerStartPhotoUrl = await saveImageFromForm(formData, "odometerStartPhoto", "odometers", user.id);
+  const odometerStartPhotoUrl: string | undefined = undefined;
 
   const { checkIn, anomalyContext } = await prisma.$transaction(async (tx) => {
     const projectStillActive = await tx.project.findFirst({
@@ -1242,7 +1343,8 @@ export async function checkoutAction(formData: FormData) {
   const accuracy = getNumber(formData, "accuracy");
   const checkoutStatus = (getString(formData, "checkoutStatus") || "DONE") as CheckOutStatus;
   const checkoutNote = getString(formData, "checkoutNote") || undefined;
-  const odometerEndKm = getNumber(formData, "odometerEndKm");
+  // Site checkout records GPS and work evidence only; day-end captures the odometer.
+  const odometerEndKm: number | undefined = undefined;
 
   if (!checkInId || latitude === undefined || longitude === undefined) {
     throw new Error("กรุณาดึง GPS ก่อนเช็คเอาท์");
@@ -1261,7 +1363,7 @@ export async function checkoutAction(formData: FormData) {
   const legacyCheckoutPhotoUrl = await saveImageFromForm(formData, "checkoutPhoto", "check-outs", user.id);
   const allCheckoutPhotoUrls = legacyCheckoutPhotoUrl ? [legacyCheckoutPhotoUrl, ...checkoutPhotoUrls] : checkoutPhotoUrls;
   const checkoutPhotoUrl = allCheckoutPhotoUrls[0];
-  const odometerEndPhotoUrl = await saveImageFromForm(formData, "odometerEndPhoto", "odometers", user.id);
+  const odometerEndPhotoUrl: string | undefined = undefined;
   const checkedOutAt = new Date();
   const odometerDistanceKm =
     activeVisit.odometerStartKm !== null && activeVisit.odometerStartKm !== undefined && odometerEndKm !== undefined
