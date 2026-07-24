@@ -18,6 +18,7 @@ import { prisma } from "@/lib/db";
 import { buildCheckInEvidence } from "@/lib/check-in-evidence";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { checkoutStatusLabels, purposeLabels, roleLabels } from "@/lib/labels";
+import { resolveOdometerSnapshot } from "@/lib/odometer-snapshot";
 
 type AdminCheckInsSearchParams = {
   q?: string;
@@ -311,7 +312,12 @@ export default async function AdminCheckInsPage({
                 const evidence = buildCheckInEvidence(item);
                 const fieldSession = item.tripSession?.fieldWorkSession;
                 const displayVehicle = item.vehicle ?? fieldSession?.vehicle ?? null;
-                const displayOdometerDistance = fieldSession?.odometerDistanceKm ?? item.odometerDistanceKm;
+                const odometer = resolveOdometerSnapshot({
+                  odometerStartKm: item.odometerStartKm,
+                  odometerEndKm: item.odometerEndKm,
+                  odometerDistanceKm: item.odometerDistanceKm,
+                  fieldWorkSession: fieldSession
+                });
 
                 return (
                   <tr key={item.id}>
@@ -339,16 +345,14 @@ export default async function AdminCheckInsPage({
                     <td>
                       <strong>{purposeLabels[item.purpose]}</strong>
                       <div className="muted">{item.checkoutNote ?? item.note ?? "-"}</div>
-                      {displayOdometerDistance !== null && displayOdometerDistance !== undefined ? (
+                      {odometer.distanceKm !== null ? (
                         <div className="admin-checkins-odometer">
                           <Gauge size={13} />
-                          {formatNumber(displayOdometerDistance, 1)} กม. {fieldSession ? "ทั้งวัน" : ""}
+                          {formatNumber(odometer.distanceKm, 1)} กม. {odometer.source === "FIELD_DAY" ? "ทั้งวัน" : ""}
                         </div>
                       ) : null}
-                      {fieldSession ? (
-                        <div className="muted">เลขไมล์ต้น–ปลายวัน {formatNumber(fieldSession.odometerStartKm, 1)} → {fieldSession.odometerEndKm !== null ? formatNumber(fieldSession.odometerEndKm, 1) : "รอจบรอบ"}</div>
-                      ) : item.odometerStartKm !== null || item.odometerEndKm !== null ? (
-                        <div className="muted">เลขไมล์รูปแบบเดิม {item.odometerStartKm ?? "-"} → {item.odometerEndKm ?? "-"}</div>
+                      {odometer.source !== "NONE" ? (
+                        <div className="muted">เลขไมล์{odometer.source === "FIELD_DAY" ? "ต้น–ปลายวัน" : "รูปแบบเดิม"} {odometer.startKm ?? "-"} → {odometer.endKm ?? (odometer.source === "FIELD_DAY" ? "รอจบรอบ" : "-")}</div>
                       ) : null}
                     </td>
                     <td>
@@ -401,7 +405,12 @@ export default async function AdminCheckInsPage({
             const evidence = buildCheckInEvidence(item);
             const fieldSession = item.tripSession?.fieldWorkSession;
             const displayVehicle = item.vehicle ?? fieldSession?.vehicle ?? null;
-            const displayOdometerDistance = fieldSession?.odometerDistanceKm ?? item.odometerDistanceKm;
+            const odometer = resolveOdometerSnapshot({
+              odometerStartKm: item.odometerStartKm,
+              odometerEndKm: item.odometerEndKm,
+              odometerDistanceKm: item.odometerDistanceKm,
+              fieldWorkSession: fieldSession
+            });
 
             return (
               <article className="admin-checkins-mobile-card" key={item.id}>
@@ -418,7 +427,7 @@ export default async function AdminCheckInsPage({
                 <div className="admin-checkins-mobile-meta">
                   <span><ClipboardCheck size={14} /> {purposeLabels[item.purpose]}</span>
                   <span>หลักฐาน {evidence.length} ไฟล์</span>
-                  {displayOdometerDistance !== null && displayOdometerDistance !== undefined ? <span><Gauge size={14} /> {formatNumber(displayOdometerDistance, 1)} กม. {fieldSession ? "ทั้งวัน" : ""}</span> : null}
+                  {odometer.distanceKm !== null ? <span><Gauge size={14} /> {formatNumber(odometer.distanceKm, 1)} กม. {odometer.source === "FIELD_DAY" ? "ทั้งวัน" : ""}</span> : null}
                 </div>
                 <AdminCheckInDetailButton detail={{
                   id: item.id,

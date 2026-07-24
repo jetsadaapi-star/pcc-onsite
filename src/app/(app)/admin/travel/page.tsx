@@ -29,6 +29,7 @@ import { prisma } from "@/lib/db";
 import { formatDateTime, formatMoney, formatNumber } from "@/lib/format";
 import { reviewTravelClaimFormAction } from "@/lib/form-actions";
 import { claimStatusLabels, claimTone, roleLabels } from "@/lib/labels";
+import { resolveOdometerSnapshot } from "@/lib/odometer-snapshot";
 
 type AdminTravelSearchParams = {
   q?: string;
@@ -170,12 +171,28 @@ type TravelClaimDetailRecord = {
     destinationLabel: string | null;
     fromProject: { name: string } | null;
     toProject: { name: string; customerName: string } | null;
+    tripSession: {
+      fieldWorkSession: {
+        id: string;
+        status: string;
+        odometerStartKm: number;
+        odometerEndKm: number | null;
+        odometerDistanceKm: number | null;
+        gpsDistanceKm: number | null;
+        distanceVariancePercent: number | null;
+      } | null;
+    } | null;
   };
 };
 
 function TravelClaimDetailModal({ claim }: { claim: TravelClaimDetailRecord }) {
   const origin = claim.travelLeg.fromProject?.name ?? "จุดก่อนหน้า";
   const destination = claim.travelLeg.toProject?.name ?? claim.travelLeg.destinationLabel ?? "สำนักงาน";
+  const odometer = resolveOdometerSnapshot({
+    odometerDistanceKm: claim.odometerDistanceKm,
+    distanceVariancePercent: claim.distanceVariancePercent,
+    fieldWorkSession: claim.travelLeg.tripSession?.fieldWorkSession
+  });
   return (
     <AdminDetailModal
       wide
@@ -191,7 +208,11 @@ function TravelClaimDetailModal({ claim }: { claim: TravelClaimDetailRecord }) {
           <div><span>ปลายทาง</span><strong>{destination}</strong><small>{claim.travelLeg.toProject?.customerName ?? "สำนักงาน/ปลายทางอื่น"}</small></div>
           <div><span>รถ</span><strong>{claim.vehicleName ?? claim.vehicle?.name ?? "ใช้ค่าเริ่มต้น"}</strong><small>{claim.vehicleLicensePlate ?? claim.vehicle?.licensePlate ?? "ไม่ระบุทะเบียน"}</small></div>
           <div><span>ระยะ GPS</span><strong>{formatNumber(claim.distanceKm, 2)} กม.</strong><small>{distanceStatusLabels[claim.travelLeg.distanceStatus] ?? claim.travelLeg.distanceStatus}</small></div>
-          <div><span>ระยะเลขไมล์</span><strong>{claim.odometerDistanceKm !== null ? `${formatNumber(claim.odometerDistanceKm, 2)} กม.` : "-"}</strong><small>{claim.distanceVariancePercent !== null ? `ต่าง ${formatNumber(claim.distanceVariancePercent, 1)}%` : "ไม่มีข้อมูลเปรียบเทียบ"}</small></div>
+          <div>
+            <span>{odometer.source === "FIELD_DAY" ? "ระยะเลขไมล์ทั้งวัน" : "ระยะเลขไมล์ข้อมูลเดิม"}</span>
+            <strong>{odometer.distanceKm !== null ? `${formatNumber(odometer.distanceKm, 2)} กม.` : "-"}</strong>
+            <small>{odometer.source === "FIELD_DAY" ? `ข้อมูลรอบงาน · GPS รวม ${odometer.gpsDistanceKm !== null ? `${formatNumber(odometer.gpsDistanceKm, 1)} กม.` : "-"}` : odometer.variancePercent !== null ? `ต่าง ${formatNumber(odometer.variancePercent, 1)}%` : "ไม่มีข้อมูลเปรียบเทียบ"}</small>
+          </div>
         </div>
       </section>
 
@@ -307,7 +328,22 @@ export default async function AdminTravelPage({
             distanceStatus: true,
             destinationLabel: true,
             fromProject: { select: { name: true } },
-            toProject: { select: { name: true, customerName: true } }
+            toProject: { select: { name: true, customerName: true } },
+            tripSession: {
+              select: {
+                fieldWorkSession: {
+                  select: {
+                    id: true,
+                    status: true,
+                    odometerStartKm: true,
+                    odometerEndKm: true,
+                    odometerDistanceKm: true,
+                    gpsDistanceKm: true,
+                    distanceVariancePercent: true
+                  }
+                }
+              }
+            }
           }
         }
       }

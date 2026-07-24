@@ -19,6 +19,7 @@ import { calculateHaversineKm, getRouteDistance } from "@/lib/distance";
 import { processCheckoutReminders } from "@/lib/notifications";
 import { calculateReimbursement } from "@/lib/reimbursement";
 import { canTransitionProjectStatus, type ProjectStatus } from "@/lib/project-status";
+import { canManageProject } from "@/lib/project-access";
 import { getNumber, getString } from "@/lib/form-values";
 import { summarizeFieldWorkDistance } from "@/lib/field-work-session";
 import type { CheckInPurpose, CheckOutStatus, ClaimStatus, FuelType, Role, TripOriginType } from "@/generated/prisma/enums";
@@ -869,8 +870,7 @@ export async function updateProjectStatusAction(formData: FormData) {
   const project = await prisma.project.findUnique({ where: { id } });
   if (!project) throw new Error("Project not found");
 
-  const ownsProject = project.createdById === user.id || project.ownerId === user.id;
-  if (user.role !== "ADMIN" && !ownsProject) throw new Error("Forbidden");
+  if (!canManageProject(user, project)) throw new Error("Forbidden");
   if (!canTransitionProjectStatus(project.status as ProjectStatus, nextStatus) && user.role !== "ADMIN") {
     if (redirectTo) redirect(withQueryParam(redirectTo, "statusError", "invalid-transition"));
     throw new Error("Invalid project status transition");
@@ -898,9 +898,13 @@ export async function updateProjectStatusAction(formData: FormData) {
 }
 
 export async function updateProjectAction(formData: FormData) {
-  const admin = await requireAdmin();
+  const user = await requireUser();
   const id = getString(formData, "id");
   if (!id) throw new Error("Missing project id");
+
+  const existing = await prisma.project.findUnique({ where: { id } });
+  if (!existing) throw new Error("Project not found");
+  if (!canManageProject(user, existing)) throw new Error("Forbidden");
 
   const input = projectSchema.parse({
     name: getString(formData, "name"),
@@ -911,7 +915,7 @@ export async function updateProjectAction(formData: FormData) {
     province: getString(formData, "province") || undefined,
     latitude: getNumber(formData, "latitude"),
     longitude: getNumber(formData, "longitude"),
-    status: getString(formData, "status") || "NEW",
+    status: user.role === "ADMIN" ? getString(formData, "status") || existing.status : existing.status,
     description: getString(formData, "description") || undefined
   });
 
@@ -922,7 +926,7 @@ export async function updateProjectAction(formData: FormData) {
 
   await prisma.activityLog.create({
     data: {
-      actorId: admin.id,
+      actorId: user.id,
       entityType: "Project",
       entityId: id,
       action: "UPDATE_PROJECT",

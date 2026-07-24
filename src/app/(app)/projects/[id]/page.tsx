@@ -8,6 +8,7 @@ import {
   Pencil,
   Phone,
   Route,
+  ShieldCheck,
   Trash2,
   UserRound
 } from "lucide-react";
@@ -21,6 +22,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDateTime } from "@/lib/format";
 import { checkoutStatusLabels, purposeLabels } from "@/lib/labels";
+import { canManageProject, canViewProjectTeamActivity } from "@/lib/project-access";
 import { getAvailableProjectStatusOptions, getProjectStatusTone, projectStatusLabels, type ProjectStatus } from "@/lib/project-status";
 
 export default async function ProjectDetailPage({
@@ -38,30 +40,40 @@ export default async function ProjectDetailPage({
     include: {
       owner: { select: { name: true, email: true } },
       createdBy: { select: { name: true, email: true } },
-      checkIns: {
-        orderBy: { checkedAt: "desc" },
-        take: 12,
-        include: { user: { select: { name: true, role: true } } }
-      },
-      destinationTravelLegs: {
-        orderBy: { createdAt: "desc" },
-        take: 8,
-        select: { distanceKm: true }
-      },
       _count: { select: { checkIns: true } }
     }
   });
 
   if (!project) notFound();
 
+  const canManage = canManageProject(user, project);
+  const canViewTeamActivity = canViewProjectTeamActivity(user, project);
+  const activityScope = canViewTeamActivity ? {} : { userId: user.id };
+  const [checkIns, visibleCheckInCount, destinationTravelLegs] = await Promise.all([
+    prisma.checkIn.findMany({
+      where: { projectId: project.id, ...activityScope },
+      orderBy: { checkedAt: "desc" },
+      take: 12,
+      include: { user: { select: { name: true, role: true } } }
+    }),
+    canViewTeamActivity
+      ? Promise.resolve(project._count.checkIns)
+      : prisma.checkIn.count({ where: { projectId: project.id, userId: user.id } }),
+    prisma.travelLeg.findMany({
+      where: { toProjectId: project.id, ...activityScope },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      select: { distanceKm: true }
+    })
+  ]);
   const status = project.status as ProjectStatus;
   const availableStatusOptions = getAvailableProjectStatusOptions(status, user.role === "ADMIN");
   const availableNextStatusLabels = availableStatusOptions
     .filter((option) => option.value !== status)
     .map((option) => option.label);
   const hasLocation = project.latitude !== null && project.longitude !== null;
-  const totalInboundKm = project.destinationTravelLegs.reduce((sum, leg) => sum + leg.distanceKm, 0);
-  const lastCheckIn = project.checkIns[0];
+  const totalInboundKm = destinationTravelLegs.reduce((sum, leg) => sum + leg.distanceKm, 0);
+  const lastCheckIn = checkIns[0];
   const mapPoints = hasLocation
     ? [{ id: project.id, label: `${project.code} ${project.name}`, latitude: project.latitude as number, longitude: project.longitude as number }]
     : [];
@@ -87,15 +99,17 @@ export default async function ProjectDetailPage({
         </div>
         <div className="project-status-panel">
           <span className={`badge ${getProjectStatusTone(status)}`}>{projectStatusLabels[status]}</span>
-          <strong>{project._count.checkIns}</strong>
-          <small>check-ins</small>
+          <strong>{visibleCheckInCount}</strong>
+          <small>{canViewTeamActivity ? "เช็คอินของทีม" : "เช็คอินของฉัน"}</small>
         </div>
-        {user.role === "ADMIN" ? (
+        {canManage ? (
           <div className="new-project-actions">
-            <Link className="button secondary" href={`/admin/projects/${project.id}/edit`}><Pencil size={16} /> แก้ไข</Link>
-            <ConfirmActionForm action={deleteProjectAction} fields={{ id: project.id }} message={`ยืนยันลบโครงการ ${project.code} ${project.name} ใช่หรือไม่?`}>
-              <button className="button danger" type="submit" disabled={project._count.checkIns > 0} title={project._count.checkIns > 0 ? "โครงการมีประวัติเช็กอิน ไม่สามารถลบได้" : undefined}><Trash2 size={16} /> ลบ</button>
-            </ConfirmActionForm>
+            <Link className="button secondary" href={user.role === "ADMIN" ? `/admin/projects/${project.id}/edit` : `/projects/${project.id}/edit`}><Pencil size={16} /> แก้ไข</Link>
+            {user.role === "ADMIN" ? (
+              <ConfirmActionForm action={deleteProjectAction} fields={{ id: project.id }} message={`ยืนยันลบโครงการ ${project.code} ${project.name} ใช่หรือไม่?`}>
+                <button className="button danger" type="submit" disabled={project._count.checkIns > 0} title={project._count.checkIns > 0 ? "โครงการมีประวัติเช็กอิน ไม่สามารถลบได้" : undefined}><Trash2 size={16} /> ลบ</button>
+              </ConfirmActionForm>
+            ) : null}
           </div>
         ) : null}
       </section>
@@ -107,7 +121,7 @@ export default async function ProjectDetailPage({
         </div>
         <div className="project-view-kpi">
           <span className="kpi-icon teal"><CheckCircle2 size={18} /></span>
-          <div><small>เช็คอินทั้งหมด</small><strong>{project._count.checkIns}</strong></div>
+          <div><small>{canViewTeamActivity ? "เช็คอินของทีม" : "เช็คอินของฉัน"}</small><strong>{visibleCheckInCount}</strong></div>
         </div>
         <div className="project-view-kpi">
           <span className="kpi-icon amber"><Route size={18} /></span>
@@ -162,11 +176,11 @@ export default async function ProjectDetailPage({
                 <h2>Timeline เช็คอิน</h2>
                 <p>{lastCheckIn ? `ล่าสุด ${formatDateTime(lastCheckIn.checkedAt)}` : "ยังไม่มีประวัติเช็คอิน"}</p>
               </div>
-              <span className="badge info">{project._count.checkIns} ครั้ง</span>
+              <span className="badge info">{visibleCheckInCount} ครั้ง</span>
             </div>
 
             <div className="checkin-timeline">
-              {project.checkIns.map((checkIn) => (
+              {checkIns.map((checkIn) => (
                 <article className="timeline-item" key={checkIn.id}>
                   <div className="timeline-dot" />
                   <div>
@@ -180,17 +194,17 @@ export default async function ProjectDetailPage({
                 </article>
               ))}
             </div>
-            {project.checkIns.length === 0 ? <div className="empty">ยังไม่มีประวัติเช็คอินในโครงการนี้</div> : null}
+            {checkIns.length === 0 ? <div className="empty">{canViewTeamActivity ? "ยังไม่มีประวัติเช็คอินในโครงการนี้" : "คุณยังไม่มีประวัติเช็คอินในโครงการนี้"}</div> : null}
           </section>
         </main>
 
         <aside className="project-view-aside">
           <section className="status-control-card">
             <div>
-              <h2>จัดการสถานะ</h2>
-              <p>{user.role === "ADMIN" ? "ผู้ดูแลระบบสามารถแก้ไขเป็นสถานะใดก็ได้" : "เลือกได้เฉพาะสถานะถัดไปตามลำดับการทำงาน"}</p>
+              <h2>{canManage ? "จัดการสถานะ" : "สถานะโครงการ"}</h2>
+              <p>{user.role === "ADMIN" ? "ผู้ดูแลระบบสามารถแก้ไขเป็นสถานะใดก็ได้" : canManage ? "เลือกได้เฉพาะสถานะถัดไปตามลำดับการทำงาน" : "ผู้รับผิดชอบ ผู้สร้างโครงการ หรือแอดมินเป็นผู้เปลี่ยนสถานะ"}</p>
             </div>
-            {query.statusError ? (
+            {canManage && query.statusError ? (
               <div className="new-project-alert" role="alert">
                 {query.statusError === "save-failed" ? (
                   "ไม่สามารถบันทึกสถานะได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง"
@@ -201,19 +215,26 @@ export default async function ProjectDetailPage({
                 )}
               </div>
             ) : null}
-            <form action={updateProjectStatusFormAction} className="form-grid">
-              <input type="hidden" name="id" value={project.id} />
-              <input type="hidden" name="redirectTo" value={`/projects/${project.id}`} />
-              <div className="field">
-                <label htmlFor="status">สถานะใหม่</label>
-                <select className="select" id="status" name="status" defaultValue={project.status}>
-                  {availableStatusOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
+            {canManage ? (
+              <form action={updateProjectStatusFormAction} className="form-grid">
+                <input type="hidden" name="id" value={project.id} />
+                <input type="hidden" name="redirectTo" value={`/projects/${project.id}`} />
+                <div className="field">
+                  <label htmlFor="status">สถานะใหม่</label>
+                  <select className="select" id="status" name="status" defaultValue={project.status}>
+                    {availableStatusOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <button className="button" type="submit">อัปเดตสถานะ</button>
+              </form>
+            ) : (
+              <div className="project-info-item">
+                <span><ShieldCheck size={15} /> สถานะปัจจุบัน</span>
+                <strong>{projectStatusLabels[status]}</strong>
               </div>
-              <button className="button" type="submit">อัปเดตสถานะ</button>
-            </form>
+            )}
           </section>
 
           <section className="project-people-card">

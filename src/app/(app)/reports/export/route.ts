@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { claimStatusLabels } from "@/lib/labels";
+import { resolveOdometerSnapshot } from "@/lib/odometer-snapshot";
 import { buildTravelClaimWhere, normalizeReportFilters } from "@/lib/report-filters";
 import { createTravelReportPdf } from "@/lib/travel-report-pdf";
 
@@ -64,7 +65,22 @@ export async function GET(request: NextRequest) {
         select: {
           destinationLabel: true,
           fromProject: { select: { name: true } },
-          toProject: { select: { name: true } }
+          toProject: { select: { name: true } },
+          tripSession: {
+            select: {
+              fieldWorkSession: {
+                select: {
+                  id: true,
+                  status: true,
+                  odometerStartKm: true,
+                  odometerEndKm: true,
+                  odometerDistanceKm: true,
+                  gpsDistanceKm: true,
+                  distanceVariancePercent: true
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -87,10 +103,11 @@ export async function GET(request: NextRequest) {
     "รถ",
     "ทะเบียน",
     "ระยะทาง GPS (กม.)",
-    "เลขไมล์เริ่ม",
-    "เลขไมล์ปลายทาง",
-    "ระยะเลขไมล์ (กม.)",
-    "ส่วนต่าง %",
+    "แหล่งข้อมูลเลขไมล์",
+    "เลขไมล์ต้นวัน/เริ่มเดิม",
+    "เลขไมล์ปลายวัน/ปลายเดิม",
+    "ระยะเลขไมล์ทั้งวัน/เดิม (กม.)",
+    "ส่วนต่าง GPS/เลขไมล์ทั้งวัน %",
     "กม./ลิตร",
     "ราคาเชื้อเพลิง/ลิตร",
     "ค่าน้ำมันประมาณการ",
@@ -106,33 +123,43 @@ export async function GET(request: NextRequest) {
     "หมายเหตุ"
   ];
 
-  const rows = claims.map((claim) => [
-    thaiDate(claim.submittedAt),
-    claim.user.name,
-    claim.user.role,
-    claim.travelLeg.fromProject?.name ?? "จุดเริ่มต้น",
-    claim.travelLeg.toProject?.name ?? claim.travelLeg.destinationLabel ?? "สำนักงาน",
-    claim.vehicleName ?? claim.vehicle?.name ?? "ใช้ค่าเริ่มต้น",
-    claim.vehicleLicensePlate ?? claim.vehicle?.licensePlate ?? "",
-    formatNumber(claim.distanceKm, 2),
-    claim.odometerStartKm ?? "",
-    claim.odometerEndKm ?? "",
-    claim.odometerDistanceKm ?? "",
-    claim.distanceVariancePercent === null ? "" : formatNumber(claim.distanceVariancePercent, 2),
-    formatNumber(claim.kmPerLiter, 1),
-    formatMoney(claim.fuelPricePerLiter),
-    formatMoney(claim.fuelEstimate),
-    formatMoney(claim.ratePerKm),
-    formatMoney(claim.mileageAmount),
-    formatMoney(claim.tollAmount),
-    formatMoney(claim.parkingAmount),
-    formatMoney(claim.otherAmount),
-    formatMoney(claim.totalAmount),
-    claimStatusLabels[claim.status],
-    claim.reviewedBy?.name ?? "",
-    claim.reviewedAt ? thaiDate(claim.reviewedAt) : "",
-    claim.adminNote ?? claim.overrideReason ?? ""
-  ]);
+  const rows = claims.map((claim) => {
+    const odometer = resolveOdometerSnapshot({
+      odometerStartKm: claim.odometerStartKm,
+      odometerEndKm: claim.odometerEndKm,
+      odometerDistanceKm: claim.odometerDistanceKm,
+      distanceVariancePercent: claim.distanceVariancePercent,
+      fieldWorkSession: claim.travelLeg.tripSession?.fieldWorkSession
+    });
+    return [
+      thaiDate(claim.submittedAt),
+      claim.user.name,
+      claim.user.role,
+      claim.travelLeg.fromProject?.name ?? "จุดเริ่มต้น",
+      claim.travelLeg.toProject?.name ?? claim.travelLeg.destinationLabel ?? "สำนักงาน",
+      claim.vehicleName ?? claim.vehicle?.name ?? "ใช้ค่าเริ่มต้น",
+      claim.vehicleLicensePlate ?? claim.vehicle?.licensePlate ?? "",
+      formatNumber(claim.distanceKm, 2),
+      odometer.source === "FIELD_DAY" ? "รอบงานประจำวัน" : odometer.source === "LEGACY" ? "ข้อมูลเดิมต่อรายการ" : "",
+      odometer.startKm ?? "",
+      odometer.endKm ?? "",
+      odometer.distanceKm ?? "",
+      odometer.variancePercent === null ? "" : formatNumber(odometer.variancePercent, 2),
+      formatNumber(claim.kmPerLiter, 1),
+      formatMoney(claim.fuelPricePerLiter),
+      formatMoney(claim.fuelEstimate),
+      formatMoney(claim.ratePerKm),
+      formatMoney(claim.mileageAmount),
+      formatMoney(claim.tollAmount),
+      formatMoney(claim.parkingAmount),
+      formatMoney(claim.otherAmount),
+      formatMoney(claim.totalAmount),
+      claimStatusLabels[claim.status],
+      claim.reviewedBy?.name ?? "",
+      claim.reviewedAt ? thaiDate(claim.reviewedAt) : "",
+      claim.adminNote ?? claim.overrideReason ?? ""
+    ];
+  });
 
   const totalAmount = claims.reduce((sum, claim) => sum + Number(claim.totalAmount), 0);
   const docNo = documentNo();

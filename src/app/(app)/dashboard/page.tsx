@@ -42,6 +42,18 @@ function greeting(name: string) {
   return `${prefix} ${name}`;
 }
 
+function fieldRoleHeadline(role: string) {
+  if (role === "SALES") return "พร้อมเข้าพบลูกค้าวันนี้";
+  if (role === "ENGINEER") return "พร้อมสำรวจและตรวจหน้างานวันนี้";
+  return "พร้อมปฏิบัติงานภาคสนามวันนี้";
+}
+
+function fieldRoleProjectLabel(role: string) {
+  if (role === "SALES") return "ลูกค้าและโครงการของฉัน";
+  if (role === "ENGINEER") return "หน้างานที่ฉันดูแล";
+  return "โครงการของฉัน";
+}
+
 export default async function DashboardPage() {
   const user = await requireUser();
   if (user.role === "ADMIN") redirect("/admin");
@@ -236,7 +248,7 @@ export default async function DashboardPage() {
           <span className={activeVisit ? "mobile-home-eyebrow active" : "mobile-home-eyebrow"}>
             {activeVisit ? "กำลังเปิดงาน" : activeTrip ? "กำลังเดินทาง" : activeFieldWorkSession ? "รอบงานวันนี้กำลังเปิด" : greeting(user.name)}
           </span>
-          <h1>{activeVisit ? "อย่าลืมออกจากงานก่อนเดินทางต่อ" : activeTrip ? `กำลังไป ${activeTripDestinationLabel}` : activeFieldWorkSession ? "พร้อมเดินทางไปจุดถัดไป" : "พร้อมออกหน้างานวันนี้"}</h1>
+          <h1>{activeVisit ? "อย่าลืมออกจากงานก่อนเดินทางต่อ" : activeTrip ? `กำลังไป ${activeTripDestinationLabel}` : activeFieldWorkSession ? "พร้อมเดินทางไปจุดถัดไป" : fieldRoleHeadline(user.role)}</h1>
           <p>
             {activeVisit
               ? `คุณอยู่ที่ ${activeVisit.project.name} มาแล้ว ${durationText(activeVisit.checkedAt)}`
@@ -388,7 +400,7 @@ export default async function DashboardPage() {
         <div className="mobile-panel dashboard-projects">
           <div className="mobile-panel-heading">
             <div>
-              <h2>โครงการของฉัน</h2>
+              <h2>{fieldRoleProjectLabel(user.role)}</h2>
               <p>งานที่คุณสร้างหรือรับผิดชอบ</p>
             </div>
             <Link href="/projects">ทั้งหมด</Link>

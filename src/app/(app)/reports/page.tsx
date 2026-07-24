@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { formatDateTime, formatMoney, formatNumber } from "@/lib/format";
 import { getFuelPerformanceRows } from "@/lib/fuel-performance";
 import { claimStatusLabels, claimTone } from "@/lib/labels";
+import { resolveOdometerSnapshot } from "@/lib/odometer-snapshot";
 import { buildBangkokReportDateFilter, buildReportQuery, buildTravelClaimWhere, normalizeReportFilters, reportStatusOptions, type ReportFilterInput } from "@/lib/report-filters";
 
 type ReportsSearchParams = ReportFilterInput;
@@ -28,7 +29,22 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           select: {
             destinationLabel: true,
             fromProject: { select: { name: true } },
-            toProject: { select: { name: true } }
+            toProject: { select: { name: true } },
+            tripSession: {
+              select: {
+                fieldWorkSession: {
+                  select: {
+                    id: true,
+                    status: true,
+                    odometerStartKm: true,
+                    odometerEndKm: true,
+                    odometerDistanceKm: true,
+                    gpsDistanceKm: true,
+                    distanceVariancePercent: true
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -285,8 +301,15 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               </tr>
             </thead>
             <tbody>
-              {claims.map((claim) => (
-                <tr key={claim.id}>
+              {claims.map((claim) => {
+                const odometer = resolveOdometerSnapshot({
+                  odometerStartKm: claim.odometerStartKm,
+                  odometerEndKm: claim.odometerEndKm,
+                  odometerDistanceKm: claim.odometerDistanceKm,
+                  distanceVariancePercent: claim.distanceVariancePercent,
+                  fieldWorkSession: claim.travelLeg.tripSession?.fieldWorkSession
+                });
+                return <tr key={claim.id}>
                   <td>{formatDateTime(claim.submittedAt)}</td>
                   <td>
                     <span className="reports-user-pill">
@@ -310,8 +333,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                       <Gauge size={14} />
                       {formatNumber(claim.distanceKm, 1)} กม.
                     </span>
-                    {claim.odometerDistanceKm !== null ? (
-                      <div className="muted">เข็มไมล์ {formatNumber(claim.odometerDistanceKm, 1)} กม.</div>
+                    {odometer.distanceKm !== null ? (
+                      <div className="muted">{odometer.source === "FIELD_DAY" ? "เลขไมล์ทั้งวัน" : "เลขไมล์เดิม"} {formatNumber(odometer.distanceKm, 1)} กม.</div>
                     ) : null}
                   </td>
                   <td>
@@ -321,15 +344,22 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                     </div>
                   </td>
                   <td><span className={`badge ${claimTone(claim.status)}`}>{claimStatusLabels[claim.status]}</span></td>
-                </tr>
-              ))}
+                </tr>;
+              })}
             </tbody>
           </table>
         </div>
 
         <div className="reports-mobile-list">
-          {claims.map((claim) => (
-            <article className="reports-mobile-card" key={claim.id}>
+          {claims.map((claim) => {
+            const odometer = resolveOdometerSnapshot({
+              odometerStartKm: claim.odometerStartKm,
+              odometerEndKm: claim.odometerEndKm,
+              odometerDistanceKm: claim.odometerDistanceKm,
+              distanceVariancePercent: claim.distanceVariancePercent,
+              fieldWorkSession: claim.travelLeg.tripSession?.fieldWorkSession
+            });
+            return <article className="reports-mobile-card" key={claim.id}>
               <div className="reports-mobile-head">
                 <div>
                   <strong>{formatMoney(claim.totalAmount)}</strong>
@@ -347,9 +377,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               </div>
               <div className="reports-mobile-sub">
                 {claim.vehicleName ?? claim.vehicle?.name ?? "ใช้ค่าเริ่มต้น"} · น้ำมัน {formatMoney(claim.fuelEstimate)} · สึกหรอ {formatMoney(claim.mileageAmount)}
+                {odometer.distanceKm !== null ? ` · เลขไมล์${odometer.source === "FIELD_DAY" ? "ทั้งวัน" : "เดิม"} ${formatNumber(odometer.distanceKm, 1)} กม.` : ""}
               </div>
-            </article>
-          ))}
+            </article>;
+          })}
         </div>
 
         {claims.length === 0 ? <div className="empty">ไม่พบรายงานตามตัวกรอง</div> : null}

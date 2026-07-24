@@ -19,7 +19,13 @@ type ProjectValue = {
   description: string | null;
 };
 
-export function AdminProjectEditForm({ project }: { project: ProjectValue }) {
+export function AdminProjectEditForm({
+  project,
+  canEditStatus = true
+}: {
+  project: ProjectValue;
+  canEditStatus?: boolean;
+}) {
   const [isPending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -46,7 +52,9 @@ export function AdminProjectEditForm({ project }: { project: ProjectValue }) {
           <div className="field"><label htmlFor="project-edit-customer">ชื่อลูกค้า</label><input className="input" id="project-edit-customer" name="customerName" defaultValue={project.customerName} required /></div>
           <div className="field"><label htmlFor="project-edit-contact">ผู้ติดต่อ</label><input className="input" id="project-edit-contact" name="contactName" defaultValue={project.contactName ?? ""} /></div>
           <div className="field"><label htmlFor="project-edit-phone">เบอร์โทร</label><input className="input" id="project-edit-phone" name="contactPhone" defaultValue={project.contactPhone ?? ""} /></div>
-          <div className="field"><label htmlFor="project-edit-status">สถานะ</label><select className="select" id="project-edit-status" name="status" defaultValue={project.status}>{projectStatusOptions.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></div>
+          {canEditStatus ? (
+            <div className="field"><label htmlFor="project-edit-status">สถานะ</label><select className="select" id="project-edit-status" name="status" defaultValue={project.status}>{projectStatusOptions.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></div>
+          ) : null}
           <div className="field"><label htmlFor="project-edit-province">จังหวัด</label><input className="input" id="project-edit-province" name="province" defaultValue={project.province ?? ""} /></div>
         </div>
       </section>

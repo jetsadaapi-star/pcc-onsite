@@ -9,6 +9,7 @@ import { buildCheckInEvidence } from "@/lib/check-in-evidence";
 import { prisma } from "@/lib/db";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { checkoutStatusLabels, purposeLabels } from "@/lib/labels";
+import { resolveOdometerSnapshot } from "@/lib/odometer-snapshot";
 
 type HistorySearchParams = {
   q?: string;
@@ -123,7 +124,25 @@ export default async function EmployeeCheckInHistoryPage({ searchParams }: { sea
         odometerEndPhotoUrl: true,
         odometerDistanceKm: true,
         project: { select: { id: true, code: true, name: true, customerName: true, province: true } },
-        vehicle: { select: { name: true, licensePlate: true } }
+        vehicle: { select: { name: true, licensePlate: true } },
+        tripSession: {
+          select: {
+            fieldWorkSession: {
+              select: {
+                id: true,
+                status: true,
+                odometerStartKm: true,
+                odometerStartPhotoUrl: true,
+                odometerEndKm: true,
+                odometerEndPhotoUrl: true,
+                odometerDistanceKm: true,
+                gpsDistanceKm: true,
+                distanceVariancePercent: true,
+                vehicle: { select: { name: true, licensePlate: true } }
+              }
+            }
+          }
+        }
       }
     }),
     prisma.checkIn.count({ where }),
@@ -132,7 +151,21 @@ export default async function EmployeeCheckInHistoryPage({ searchParams }: { sea
         COUNT(*)::int AS "total",
         COUNT(*) FILTER (WHERE "checkedOutAt" IS NULL)::int AS "openTotal",
         COUNT(*) FILTER (WHERE "checkedOutAt" IS NOT NULL)::int AS "closedTotal",
-        COALESCE(SUM("odometerDistanceKm"), 0)::double precision AS "distanceKm"
+        (
+          COALESCE((
+            SELECT SUM(fws."odometerDistanceKm")
+            FROM "FieldWorkSession" fws
+            WHERE fws."userId" = ${user.id}
+          ), 0)
+          +
+          COALESCE((
+            SELECT SUM(ci_legacy."odometerDistanceKm")
+            FROM "CheckIn" ci_legacy
+            LEFT JOIN "TripSession" ts_legacy ON ts_legacy."id" = ci_legacy."tripSessionId"
+            WHERE ci_legacy."userId" = ${user.id}
+              AND ts_legacy."fieldWorkSessionId" IS NULL
+          ), 0)
+        )::double precision AS "distanceKm"
       FROM "CheckIn"
       WHERE "userId" = ${user.id}
     `,
@@ -160,7 +193,7 @@ export default async function EmployeeCheckInHistoryPage({ searchParams }: { sea
         <div>
           <span className="hero-label"><History size={15} /> My Check-ins</span>
           <h1>ประวัติเช็กอินของฉัน</h1>
-          <p>ดูเวลาเข้า-ออก โครงการ พิกัด เลขไมล์ สรุปงาน และรูปหลักฐานย้อนหลังได้เฉพาะรายการของคุณ</p>
+          <p>ดูเวลาเข้า-ออก โครงการ พิกัด และเลขไมล์รอบงานประจำวันจากแหล่งข้อมูลเดียวกับรายงานแอดมิน</p>
         </div>
         <Link className="button primary" href="/check-in">ไปหน้าเช็กอิน</Link>
       </section>
@@ -169,7 +202,7 @@ export default async function EmployeeCheckInHistoryPage({ searchParams }: { sea
         <div><span><History size={16} /> ทั้งหมด</span><strong>{metrics.total}</strong></div>
         <div><span><Clock3 size={16} /> กำลังเปิดงาน</span><strong>{metrics.openTotal}</strong></div>
         <div><span><CheckCircle2 size={16} /> เช็กเอาท์แล้ว</span><strong>{metrics.closedTotal}</strong></div>
-        <div><span><Gauge size={16} /> ระยะเลขไมล์</span><strong>{formatNumber(metrics.distanceKm, 1)} กม.</strong></div>
+        <div><span><Gauge size={16} /> ระยะเลขไมล์รวม</span><strong>{formatNumber(metrics.distanceKm, 1)} กม.</strong></div>
       </section>
 
       <section className="admin-checkins-filter-card">
@@ -204,6 +237,14 @@ export default async function EmployeeCheckInHistoryPage({ searchParams }: { sea
           {checkIns.map((item) => {
             const evidence = buildCheckInEvidence(item);
             const isOpen = !item.checkedOutAt;
+            const fieldSession = item.tripSession?.fieldWorkSession;
+            const odometer = resolveOdometerSnapshot({
+              odometerStartKm: item.odometerStartKm,
+              odometerEndKm: item.odometerEndKm,
+              odometerDistanceKm: item.odometerDistanceKm,
+              fieldWorkSession: fieldSession
+            });
+            const displayVehicle = item.vehicle ?? fieldSession?.vehicle ?? null;
             return (
               <article className="employee-history-card" key={item.id}>
                 <header>
@@ -215,8 +256,11 @@ export default async function EmployeeCheckInHistoryPage({ searchParams }: { sea
                   <div><span>เวลาออก</span><strong>{item.checkedOutAt ? formatDateTime(item.checkedOutAt) : "-"}</strong></div>
                   <div><span>ระยะเวลา</span><strong>{durationText(item.checkedAt, item.checkedOutAt)}</strong></div>
                   <div><span>ประเภทงาน</span><strong>{purposeLabels[item.purpose]}</strong></div>
-                  <div><span>รถ</span><strong>{item.vehicle ? `${item.vehicle.name}${item.vehicle.licensePlate ? ` · ${item.vehicle.licensePlate}` : ""}` : "ไม่ได้ระบุ"}</strong></div>
-                  <div><span>เลขไมล์</span><strong>{item.odometerStartKm !== null || item.odometerEndKm !== null ? `${item.odometerStartKm ?? "-"} → ${item.odometerEndKm ?? "-"}${item.odometerDistanceKm !== null ? ` · ${formatNumber(item.odometerDistanceKm, 1)} กม.` : ""}` : "-"}</strong></div>
+                  <div><span>รถ</span><strong>{displayVehicle ? `${displayVehicle.name}${displayVehicle.licensePlate ? ` · ${displayVehicle.licensePlate}` : ""}` : "ไม่ได้ระบุ"}</strong></div>
+                  <div>
+                    <span>{odometer.source === "FIELD_DAY" ? "เลขไมล์รอบวัน" : "เลขไมล์ข้อมูลเดิม"}</span>
+                    <strong>{odometer.source !== "NONE" ? `${odometer.startKm ?? "-"} → ${odometer.endKm ?? "รอจบรอบ"}${odometer.distanceKm !== null ? ` · ${formatNumber(odometer.distanceKm, 1)} กม.` : ""}` : "-"}</strong>
+                  </div>
                 </div>
                 {(item.note || item.checkoutNote || item.checkoutStatus) ? (
                   <div className="employee-history-notes">
