@@ -139,7 +139,27 @@ export default async function AdminCheckInsPage({
         odometerDistanceKm: true,
         user: { select: { id: true, name: true, email: true, role: true } },
         project: { select: { id: true, code: true, name: true, customerName: true, province: true } },
-        vehicle: { select: { name: true, licensePlate: true } }
+        vehicle: { select: { name: true, licensePlate: true } },
+        tripSession: {
+          select: {
+            fieldWorkSession: {
+              select: {
+                id: true,
+                status: true,
+                startedAt: true,
+                endedAt: true,
+                odometerStartKm: true,
+                odometerStartPhotoUrl: true,
+                odometerEndKm: true,
+                odometerEndPhotoUrl: true,
+                odometerDistanceKm: true,
+                gpsDistanceKm: true,
+                distanceVariancePercent: true,
+                vehicle: { select: { name: true, licensePlate: true } }
+              }
+            }
+          }
+        }
       }
     }),
     prisma.checkIn.count({ where }),
@@ -289,6 +309,9 @@ export default async function AdminCheckInsPage({
               {checkIns.map((item) => {
                 const isOpen = !item.checkedOutAt;
                 const evidence = buildCheckInEvidence(item);
+                const fieldSession = item.tripSession?.fieldWorkSession;
+                const displayVehicle = item.vehicle ?? fieldSession?.vehicle ?? null;
+                const displayOdometerDistance = fieldSession?.odometerDistanceKm ?? item.odometerDistanceKm;
 
                 return (
                   <tr key={item.id}>
@@ -316,19 +339,21 @@ export default async function AdminCheckInsPage({
                     <td>
                       <strong>{purposeLabels[item.purpose]}</strong>
                       <div className="muted">{item.checkoutNote ?? item.note ?? "-"}</div>
-                      {item.odometerDistanceKm !== null ? (
+                      {displayOdometerDistance !== null && displayOdometerDistance !== undefined ? (
                         <div className="admin-checkins-odometer">
                           <Gauge size={13} />
-                          {formatNumber(item.odometerDistanceKm, 1)} กม.
+                          {formatNumber(displayOdometerDistance, 1)} กม. {fieldSession ? "ทั้งวัน" : ""}
                         </div>
                       ) : null}
-                      {item.odometerStartKm !== null || item.odometerEndKm !== null ? (
-                        <div className="muted">เลขไมล์ {item.odometerStartKm ?? "-"} → {item.odometerEndKm ?? "-"}</div>
+                      {fieldSession ? (
+                        <div className="muted">เลขไมล์ต้น–ปลายวัน {formatNumber(fieldSession.odometerStartKm, 1)} → {fieldSession.odometerEndKm !== null ? formatNumber(fieldSession.odometerEndKm, 1) : "รอจบรอบ"}</div>
+                      ) : item.odometerStartKm !== null || item.odometerEndKm !== null ? (
+                        <div className="muted">เลขไมล์รูปแบบเดิม {item.odometerStartKm ?? "-"} → {item.odometerEndKm ?? "-"}</div>
                       ) : null}
                     </td>
                     <td>
                       <span className={evidence.length ? "admin-checkins-proof ok" : "admin-checkins-proof"}>หลักฐาน {evidence.length} ไฟล์</span>
-                      {item.vehicle ? <div className="muted">{item.vehicle.name}{item.vehicle.licensePlate ? ` · ${item.vehicle.licensePlate}` : ""}</div> : null}
+                      {displayVehicle ? <div className="muted">{displayVehicle.name}{displayVehicle.licensePlate ? ` · ${displayVehicle.licensePlate}` : ""}</div> : null}
                     </td>
                     <td>
                       <AdminCheckInDetailButton detail={{
@@ -346,10 +371,20 @@ export default async function AdminCheckInsPage({
                         accuracy: item.accuracy,
                         checkoutLatitude: item.checkoutLatitude,
                         checkoutLongitude: item.checkoutLongitude,
-                        vehicle: item.vehicle,
+                        vehicle: displayVehicle,
                         odometerStartKm: item.odometerStartKm,
                         odometerEndKm: item.odometerEndKm,
                         odometerDistanceKm: item.odometerDistanceKm,
+                        fieldWorkSession: fieldSession ? {
+                          statusLabel: fieldSession.status === "ACTIVE" ? "กำลังเปิดรอบ" : "จบรอบแล้ว",
+                          startedAt: formatDateTime(fieldSession.startedAt),
+                          endedAt: fieldSession.endedAt ? formatDateTime(fieldSession.endedAt) : null,
+                          odometerStartKm: fieldSession.odometerStartKm,
+                          odometerEndKm: fieldSession.odometerEndKm,
+                          odometerDistanceKm: fieldSession.odometerDistanceKm,
+                          gpsDistanceKm: fieldSession.gpsDistanceKm,
+                          distanceVariancePercent: fieldSession.distanceVariancePercent
+                        } : null,
                         evidence
                       }} />
                     </td>
@@ -364,6 +399,9 @@ export default async function AdminCheckInsPage({
           {checkIns.map((item) => {
             const isOpen = !item.checkedOutAt;
             const evidence = buildCheckInEvidence(item);
+            const fieldSession = item.tripSession?.fieldWorkSession;
+            const displayVehicle = item.vehicle ?? fieldSession?.vehicle ?? null;
+            const displayOdometerDistance = fieldSession?.odometerDistanceKm ?? item.odometerDistanceKm;
 
             return (
               <article className="admin-checkins-mobile-card" key={item.id}>
@@ -380,7 +418,7 @@ export default async function AdminCheckInsPage({
                 <div className="admin-checkins-mobile-meta">
                   <span><ClipboardCheck size={14} /> {purposeLabels[item.purpose]}</span>
                   <span>หลักฐาน {evidence.length} ไฟล์</span>
-                  {item.odometerDistanceKm !== null ? <span><Gauge size={14} /> {formatNumber(item.odometerDistanceKm, 1)} กม.</span> : null}
+                  {displayOdometerDistance !== null && displayOdometerDistance !== undefined ? <span><Gauge size={14} /> {formatNumber(displayOdometerDistance, 1)} กม. {fieldSession ? "ทั้งวัน" : ""}</span> : null}
                 </div>
                 <AdminCheckInDetailButton detail={{
                   id: item.id,
@@ -397,10 +435,20 @@ export default async function AdminCheckInsPage({
                   accuracy: item.accuracy,
                   checkoutLatitude: item.checkoutLatitude,
                   checkoutLongitude: item.checkoutLongitude,
-                  vehicle: item.vehicle,
+                  vehicle: displayVehicle,
                   odometerStartKm: item.odometerStartKm,
                   odometerEndKm: item.odometerEndKm,
                   odometerDistanceKm: item.odometerDistanceKm,
+                  fieldWorkSession: fieldSession ? {
+                    statusLabel: fieldSession.status === "ACTIVE" ? "กำลังเปิดรอบ" : "จบรอบแล้ว",
+                    startedAt: formatDateTime(fieldSession.startedAt),
+                    endedAt: fieldSession.endedAt ? formatDateTime(fieldSession.endedAt) : null,
+                    odometerStartKm: fieldSession.odometerStartKm,
+                    odometerEndKm: fieldSession.odometerEndKm,
+                    odometerDistanceKm: fieldSession.odometerDistanceKm,
+                    gpsDistanceKm: fieldSession.gpsDistanceKm,
+                    distanceVariancePercent: fieldSession.distanceVariancePercent
+                  } : null,
                   evidence
                 }} />
               </article>

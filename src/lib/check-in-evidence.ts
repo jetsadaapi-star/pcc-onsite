@@ -5,6 +5,12 @@ export type CheckInEvidenceSource = {
   checkoutPhotoUrls?: string[];
   odometerStartPhotoUrl?: string | null;
   odometerEndPhotoUrl?: string | null;
+  tripSession?: {
+    fieldWorkSession?: {
+      odometerStartPhotoUrl?: string | null;
+      odometerEndPhotoUrl?: string | null;
+    } | null;
+  } | null;
 };
 
 export function buildCheckInEvidence(source: CheckInEvidenceSource) {
@@ -23,5 +29,7 @@ export function buildCheckInEvidence(source: CheckInEvidenceSource) {
   checkoutUrls.forEach((url, index) => add(url, `หลักฐานเช็กเอาท์ ${index + 1}`));
   add(source.odometerStartPhotoUrl, "เลขไมล์ตอนเข้า");
   add(source.odometerEndPhotoUrl, "เลขไมล์ตอนออก");
+  add(source.tripSession?.fieldWorkSession?.odometerStartPhotoUrl, "เลขไมล์ต้นวัน");
+  add(source.tripSession?.fieldWorkSession?.odometerEndPhotoUrl, "เลขไมล์ปลายวัน");
   return items;
 }

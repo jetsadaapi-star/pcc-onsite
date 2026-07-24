@@ -18,4 +18,18 @@ describe("check-in evidence", () => {
       { url: "/end.jpg", label: "เลขไมล์ตอนออก" }
     ]);
   });
+
+  it("includes daily odometer evidence from the related field-work session", () => {
+    expect(buildCheckInEvidence({
+      tripSession: {
+        fieldWorkSession: {
+          odometerStartPhotoUrl: "/day-start.jpg",
+          odometerEndPhotoUrl: "/day-end.jpg"
+        }
+      }
+    })).toEqual([
+      { url: "/day-start.jpg", label: "เลขไมล์ต้นวัน" },
+      { url: "/day-end.jpg", label: "เลขไมล์ปลายวัน" }
+    ]);
+  });
 });

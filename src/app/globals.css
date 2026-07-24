@@ -9239,6 +9239,16 @@ form[aria-busy="true"] button[type="submit"] {
 .checkin-detail-grid small { margin-top: 3px; color: #64748b; font-size: 10px; }
 .checkin-detail-grid a { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; color: #095aa4; font-size: 11px; font-weight: 850; }
 
+.checkin-detail-context-note {
+  margin-bottom: 10px;
+  padding: 9px 11px;
+  color: #7a5312;
+  background: #fff5d8;
+  border: 1px solid #e8cf8a;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
 .checkin-detail-notes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

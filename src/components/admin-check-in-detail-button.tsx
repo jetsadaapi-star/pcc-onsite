@@ -26,6 +26,16 @@ export type AdminCheckInDetail = {
   odometerStartKm: number | null;
   odometerEndKm: number | null;
   odometerDistanceKm: number | null;
+  fieldWorkSession: {
+    statusLabel: string;
+    startedAt: string;
+    endedAt: string | null;
+    odometerStartKm: number;
+    odometerEndKm: number | null;
+    odometerDistanceKm: number | null;
+    gpsDistanceKm: number | null;
+    distanceVariancePercent: number | null;
+  } | null;
   evidence: CheckInEvidenceItem[];
 };
 
@@ -111,13 +121,30 @@ export function AdminCheckInDetailButton({ detail }: { detail: AdminCheckInDetai
                 </section>
 
                 <section className="checkin-detail-section">
-                  <h3>รถและเลขไมล์</h3>
-                  <div className="checkin-detail-grid">
-                    <div><span>รถ</span><strong>{detail.vehicle?.name ?? "ไม่ได้ระบุ"}</strong><small>{detail.vehicle?.licensePlate ?? "ไม่ระบุทะเบียน"}</small></div>
-                    <div><span>เลขไมล์ตอนเข้า</span><strong>{detail.odometerStartKm ?? "-"}</strong></div>
-                    <div><span>เลขไมล์ตอนออก</span><strong>{detail.odometerEndKm ?? "-"}</strong></div>
-                    <div><span>ระยะเลขไมล์</span><strong><Gauge size={14} /> {detail.odometerDistanceKm !== null ? `${detail.odometerDistanceKm.toLocaleString("th-TH")} กม.` : "-"}</strong></div>
-                  </div>
+                  <h3>{detail.fieldWorkSession ? "รถและเลขไมล์รอบงานประจำวัน" : "รถและเลขไมล์รูปแบบเดิม"}</h3>
+                  {detail.fieldWorkSession ? (
+                    <>
+                      <div className="checkin-detail-context-note">
+                        เลขไมล์ชุดนี้เป็นยอดต้น–ปลายของรอบงานทั้งวัน ไม่ใช่เลขไมล์ตอนเข้า–ออกไซต์นี้
+                      </div>
+                      <div className="checkin-detail-grid">
+                        <div><span>รถประจำรอบ</span><strong>{detail.vehicle?.name ?? "ไม่ได้ระบุ"}</strong><small>{detail.vehicle?.licensePlate ?? "ไม่ระบุทะเบียน"}</small></div>
+                        <div><span>สถานะรอบงาน</span><strong>{detail.fieldWorkSession.statusLabel}</strong><small>{detail.fieldWorkSession.startedAt} → {detail.fieldWorkSession.endedAt ?? "ยังไม่จบรอบ"}</small></div>
+                        <div><span>เลขไมล์ต้นวัน</span><strong>{detail.fieldWorkSession.odometerStartKm.toLocaleString("th-TH")} กม.</strong></div>
+                        <div><span>เลขไมล์ปลายวัน</span><strong>{detail.fieldWorkSession.odometerEndKm !== null ? `${detail.fieldWorkSession.odometerEndKm.toLocaleString("th-TH")} กม.` : "รอจบการเดินทาง"}</strong></div>
+                        <div><span>ระยะจากเลขไมล์</span><strong><Gauge size={14} /> {detail.fieldWorkSession.odometerDistanceKm !== null ? `${detail.fieldWorkSession.odometerDistanceKm.toLocaleString("th-TH")} กม.` : "-"}</strong></div>
+                        <div><span>ระยะ GPS รวม</span><strong>{detail.fieldWorkSession.gpsDistanceKm !== null ? `${detail.fieldWorkSession.gpsDistanceKm.toLocaleString("th-TH")} กม.` : "-"}</strong></div>
+                        <div><span>ความต่าง GPS/เลขไมล์</span><strong>{detail.fieldWorkSession.distanceVariancePercent !== null ? `${detail.fieldWorkSession.distanceVariancePercent.toLocaleString("th-TH", { maximumFractionDigits: 1 })}%` : "-"}</strong></div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="checkin-detail-grid">
+                      <div><span>รถ</span><strong>{detail.vehicle?.name ?? "ไม่ได้ระบุ"}</strong><small>{detail.vehicle?.licensePlate ?? "ไม่ระบุทะเบียน"}</small></div>
+                      <div><span>เลขไมล์ตอนเข้า</span><strong>{detail.odometerStartKm ?? "-"}</strong></div>
+                      <div><span>เลขไมล์ตอนออก</span><strong>{detail.odometerEndKm ?? "-"}</strong></div>
+                      <div><span>ระยะเลขไมล์</span><strong><Gauge size={14} /> {detail.odometerDistanceKm !== null ? `${detail.odometerDistanceKm.toLocaleString("th-TH")} กม.` : "-"}</strong></div>
+                    </div>
+                  )}
                 </section>
 
                 <section className="checkin-detail-section">
